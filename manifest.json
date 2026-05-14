@@ -1,0 +1,21 @@
+{
+  "id": "runware-ai-generator",
+  "version": "0.1.0",
+  "name": "Runware AI Generator",
+  "logo": "logo.png",
+  "platform": "all",
+  "arch": "all",
+  "keywords": ["runware", "ai", "image", "generation", "stable-diffusion", "flux"],
+  "devTools": true,
+  "main": {
+    "url": "dist/index.html",
+    "width": 1280,
+    "height": 860,
+    "minWidth": 960,
+    "minHeight": 600,
+    "frame": true,
+    "resizable": true,
+    "multiple": false,
+    "backgroundColor": "#0b0b0d"
+  }
+}
