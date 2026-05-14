@@ -135,6 +135,46 @@ export interface ItemToDataURIResult {
   mime: string;
 }
 
+const KNOWN_IMAGE_EXTS = new Set([
+  'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg', 'heic', 'heif', 'tif', 'tiff', 'ico',
+]);
+
+export interface PathToDataURIResult {
+  dataURI: string;
+  bytes: number;
+  mime: string;
+  ext: string;
+  name: string;
+}
+
+export function basenameOf(filePath: string): string {
+  const parts = filePath.split(/[\\/]/);
+  return parts[parts.length - 1] || filePath;
+}
+
+export function pathToDataURI(filePath: string): PathToDataURIResult {
+  const fs = loadFs();
+  if (!fs) {
+    throw new Error('Node fs is not available — cannot read file from disk.');
+  }
+  const name = basenameOf(filePath);
+  const dot = name.lastIndexOf('.');
+  const ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : '';
+  if (!KNOWN_IMAGE_EXTS.has(ext)) {
+    throw new Error(`Unsupported file type: ${ext ? `.${ext}` : '(no extension)'}.`);
+  }
+  const { size } = fs.statSync(filePath);
+  if (size > MAX_DATA_URI_BYTES) {
+    throw new Error(
+      `File ${name} is too large for a data URI (${size} bytes > ${MAX_DATA_URI_BYTES}).`,
+    );
+  }
+  const bytes = fs.readFileSync(filePath);
+  const mime = normalizeExtToMime(ext);
+  const base64 = bytesToBase64(bytes);
+  return { dataURI: `data:${mime};base64,${base64}`, bytes: size, mime, ext, name };
+}
+
 export function itemToDataURI(item: EagleItem): ItemToDataURIResult {
   const fs = loadFs();
   if (!fs) {

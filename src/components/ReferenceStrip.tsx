@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent as ReactDragEvent } from 'react';
 import { MODELS, MODEL_LABELS, type ModelId } from '../lib/models';
-import { fileToDataURI, getSelectedItems, itemToDataURI } from '../lib/eagle';
+import {
+  basenameOf,
+  fileToDataURI,
+  getSelectedItems,
+  itemToDataURI,
+  pathToDataURI,
+} from '../lib/eagle';
 import { toast } from '../lib/toast';
 import type { Reference } from '../lib/promptForm';
 import { Skeleton } from './Skeleton';
@@ -29,6 +35,43 @@ function approxBytesFromDataURI(dataURI: string): number {
   if (comma < 0) return 0;
   const base64Length = dataURI.length - comma - 1;
   return Math.floor((base64Length * 3) / 4);
+}
+
+function parsePathsFromRaw(raw: string): string[] {
+  const out: string[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    if (trimmed.startsWith('file://')) {
+      try {
+        const u = new URL(trimmed);
+        // Windows file URLs encode the drive as the first path segment.
+        let pathname = decodeURIComponent(u.pathname);
+        if (/^\/[A-Za-z]:[\\/]/.test(pathname)) pathname = pathname.slice(1);
+        out.push(pathname);
+      } catch {
+        /* ignore */
+      }
+    } else if (/^[A-Za-z]:[\\/]/.test(trimmed) || trimmed.startsWith('/')) {
+      out.push(trimmed);
+    }
+  }
+  return out;
+}
+
+function collectPaths(dt: DataTransfer): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (paths: string[]) => {
+    for (const p of paths) {
+      if (seen.has(p)) continue;
+      seen.add(p);
+      out.push(p);
+    }
+  };
+  push(parsePathsFromRaw(dt.getData('text/uri-list') ?? ''));
+  push(parsePathsFromRaw(dt.getData('text/plain') ?? ''));
+  return out;
 }
 
 export function ReferenceStrip({
@@ -94,6 +137,40 @@ export function ReferenceStrip({
       }
     },
     [cap, modelLabel, setReferences],
+  );
+
+  const addFromPaths = useCallback(
+    async (paths: string[]) => {
+      if (paths.length === 0) return;
+      const built: Reference[] = [];
+      let unsupported = 0;
+      for (const p of paths) {
+        try {
+          const { dataURI, bytes, name } = pathToDataURI(p);
+          built.push({
+            id: `path-${p}`,
+            kind: 'library',
+            sourceItemId: p,
+            dataURI,
+            name,
+            bytes,
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.startsWith('Unsupported file type')) {
+            unsupported += 1;
+          } else {
+            console.warn('[ReferenceStrip] could not read dropped path', p, err);
+            toast.error(`Could not read ${basenameOf(p)}: ${msg}`);
+          }
+        }
+      }
+      if (unsupported > 0) {
+        toast.warn(`Ignored ${unsupported} non-image file${unsupported === 1 ? '' : 's'}.`);
+      }
+      appendRefs(built);
+    },
+    [appendRefs],
   );
 
   const addFromFiles = useCallback(
@@ -185,8 +262,18 @@ export function ReferenceStrip({
     return () => window.removeEventListener('paste', onPaste);
   }, [addFromFiles]);
 
+  const acceptsDrag = (dt: DataTransfer | null): boolean => {
+    if (!dt) return false;
+    const types = dt.types;
+    return (
+      types.includes('Files') ||
+      types.includes('text/uri-list') ||
+      types.includes('text/plain')
+    );
+  };
+
   const onDragOver = (e: ReactDragEvent) => {
-    if (!e.dataTransfer.types.includes('Files')) return;
+    if (!acceptsDrag(e.dataTransfer)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     if (!dragOver) setDragOver(true);
@@ -198,12 +285,27 @@ export function ReferenceStrip({
     setDragOver(false);
   };
   const onDrop = (e: ReactDragEvent) => {
-    if (!e.dataTransfer.types.includes('Files')) return;
+    if (!acceptsDrag(e.dataTransfer)) return;
     e.preventDefault();
     setDragOver(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length === 0) return;
-    void addFromFiles(files);
+
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length > 0) {
+      void addFromFiles(files);
+      return;
+    }
+
+    const paths = collectPaths(e.dataTransfer);
+    if (paths.length > 0) {
+      void addFromPaths(paths);
+      return;
+    }
+
+    console.warn(
+      '[ReferenceStrip] drop with no readable payload; types:',
+      Array.from(e.dataTransfer.types),
+    );
+    toast.warn('Drop ignored — no readable image data.');
   };
 
   const handleRemove = useCallback(
@@ -254,7 +356,7 @@ export function ReferenceStrip({
           </>
         ) : references.length === 0 ? (
           <p className="truncate text-xs text-fg-subtle">
-            Drop or paste images, or pull from Eagle selection.
+            Drop or paste images, drag from Eagle, or pull from selection.
           </p>
         ) : (
           references.map((r) => <ReferenceTile key={r.id} item={r} onRemove={handleRemove} />)
