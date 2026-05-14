@@ -9,7 +9,8 @@
 // Excludes node_modules/, .git/, source files, dev configs, and other build
 // scaffolding so the resulting archive is a drop-in plugin folder.
 //
-// Output: eagle-runware-<version>.zip at the plugin root (gitignored).
+// Output: eagle-runware-<version>.eagleplugin at the plugin root (gitignored).
+// `.eagleplugin` is a zip archive Eagle imports on double-click.
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
@@ -17,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
-const outName = `eagle-runware-${manifest.version}.zip`;
+const outName = `eagle-runware-${manifest.version}.eagleplugin`;
 const outPath = join(root, outName);
 
 if (!existsSync(join(root, 'dist'))) {

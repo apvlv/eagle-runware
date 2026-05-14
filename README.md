@@ -26,17 +26,18 @@ Output formats: PNG, WEBP, JPG. Number of results per job: 1–20.
 Switching models preserves prompt, seed, and references; the reference cap is
 re-evaluated and a warning fires if you would lose references on the new model.
 
-## Install — from a packaged zip
+## Install — from an `.eagleplugin` file
 
 For end users who just want to run the plugin:
 
-1. Download `eagle-runware-<version>.zip`.
-2. Unzip it. You should get a folder containing `manifest.json`, `logo.png`,
-   and `dist/`.
-3. Open **Eagle → Preferences → Plugins** and turn on **Developer Mode**.
-4. Click **Import Local Project** and pick the unzipped folder (the one
-   containing `manifest.json`).
-5. The plugin appears in Eagle's plugin list. Launch it to open the window.
+1. Download `eagle-runware-<version>.eagleplugin`.
+2. Double-click it. Eagle will prompt to install — confirm. The plugin
+   appears in Eagle's plugin list; launch it to open the window.
+
+If double-click doesn't work (e.g. the file is associated with another app),
+open Eagle and drag the `.eagleplugin` into the plugin window, or unzip it
+manually (it's a zip archive) and follow the **Import Local Project** flow in
+the next section.
 
 ## Install — from source
 
@@ -85,12 +86,13 @@ and run `localStorage.clear()`.
 npm run package
 ```
 
-This runs the production build and zips just the runtime files
-(`manifest.json`, `logo.png`, `dist/`) into `eagle-runware-<version>.zip`.
+This runs the production build and bundles just the runtime files
+(`manifest.json`, `logo.png`, `dist/`) into
+`eagle-runware-<version>.eagleplugin` (a zip archive with Eagle's extension).
 `node_modules/`, `.git/`, sources, configs, and sourcemaps are excluded.
 
-A consumer can unzip and **Import Local Project** the folder directly — no
-build step required.
+A consumer can double-click the `.eagleplugin` to install, or unzip it and
+**Import Local Project** the folder — no build step required either way.
 
 Requires the `zip` CLI on PATH (preinstalled on macOS and Linux; on Windows use
 WSL or install a zip utility).
@@ -219,7 +221,7 @@ src/
   components/        # TopBar, PromptPanel, ReferenceStrip, ResultsGrid, etc.
   lib/               # runware client, errors, models, settings, eagle bridge
   state/             # jobs + saves stores
-scripts/package.mjs  # Builds eagle-runware-<version>.zip
+scripts/package.mjs  # Builds eagle-runware-<version>.eagleplugin
 vite.config.ts       # base: './', outDir: 'dist'
 ```
 

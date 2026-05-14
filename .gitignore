@@ -4,5 +4,4 @@ dist/
 .DS_Store
 .vite/
 *.eagleplugin
-eagle-runware-*.zip
 .serena/
