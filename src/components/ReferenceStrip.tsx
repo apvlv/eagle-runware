@@ -56,6 +56,7 @@ export function ReferenceStrip({
   const appendRefs = useCallback(
     (incoming: Reference[]) => {
       if (incoming.length === 0) return;
+      let pendingToast: { kind: 'warn' | 'info'; msg: string } | null = null;
       setReferences((prev) => {
         const existingLibIds = new Set(
           prev.filter((r) => r.kind === 'library' && r.sourceItemId).map((r) => r.sourceItemId!),
@@ -74,17 +75,23 @@ export function ReferenceStrip({
         const accepted = filtered.slice(0, available);
         const rejected = filtered.length - accepted.length;
         if (rejected > 0) {
-          toast.warn(
-            `${modelLabel} accepts at most ${cap} references — dropped ${rejected}.`,
-          );
-        }
-        if (deduped > 0 && accepted.length === 0 && rejected === 0) {
-          toast.info(
-            `Already in references — skipped ${deduped} duplicate${deduped === 1 ? '' : 's'}.`,
-          );
+          pendingToast = {
+            kind: 'warn',
+            msg: `${modelLabel} accepts at most ${cap} references — dropped ${rejected}.`,
+          };
+        } else if (deduped > 0 && accepted.length === 0) {
+          pendingToast = {
+            kind: 'info',
+            msg: `Already in references — skipped ${deduped} duplicate${deduped === 1 ? '' : 's'}.`,
+          };
         }
         return accepted.length > 0 ? [...prev, ...accepted] : prev;
       });
+      if (pendingToast) {
+        const t = pendingToast as { kind: 'warn' | 'info'; msg: string };
+        if (t.kind === 'warn') toast.warn(t.msg);
+        else toast.info(t.msg);
+      }
     },
     [cap, modelLabel, setReferences],
   );
@@ -122,6 +129,10 @@ export function ReferenceStrip({
     setPendingEagle(true);
     try {
       const selected = await getSelectedItems();
+      console.log(
+        `[ReferenceStrip] Eagle.getSelected returned ${selected.length} item(s):`,
+        selected.map((i) => ({ id: i.id, name: i.name, ext: i.ext, hasFilePath: !!i.filePath })),
+      );
       if (selected.length === 0) {
         toast.info('No Eagle items selected.');
         return;
@@ -143,6 +154,9 @@ export function ReferenceStrip({
           toast.error(`Could not read ${item.name ?? item.id}: ${(err as Error).message}`);
         }
       }
+      console.log(
+        `[ReferenceStrip] Built ${built.length} reference(s) from ${selected.length} selected item(s).`,
+      );
       appendRefs(built);
     } catch (err) {
       console.warn('[ReferenceStrip] eagle selection failed:', err);

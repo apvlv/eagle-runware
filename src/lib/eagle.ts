@@ -85,7 +85,26 @@ export async function getSelectedItems(): Promise<EagleItem[]> {
   const api = requireEagle();
   if (!api.item?.getSelected) return [];
   const result = await api.item.getSelected();
-  return Array.isArray(result) ? result : [];
+  if (!Array.isArray(result)) return [];
+
+  // Eagle's getSelected can return sparse items for non-primary multi-selected
+  // entries — typically missing filePath/ext. Refetch those via getById so
+  // every caller sees fully-hydrated items.
+  const getById = api.item.getById;
+  if (!getById) return result;
+  return Promise.all(
+    result.map(async (item) => {
+      if (item?.filePath && item.ext) return item;
+      if (!item?.id) return item;
+      try {
+        const full = await getById(item.id);
+        return full ?? item;
+      } catch (err) {
+        console.warn('[Runware] getById failed while hydrating selected item', item.id, err);
+        return item;
+      }
+    }),
+  );
 }
 
 export async function getSelectedFolder(): Promise<EagleFolder | null> {
