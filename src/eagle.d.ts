@@ -75,6 +75,18 @@ declare global {
     addFromURL: (url: string, options?: EagleAddFromURLOptions) => Promise<string>;
     addFromBase64: (base64: string, options?: EagleAddFromBase64Options) => Promise<string>;
     addFromPath?: (path: string, options?: EagleAddFromPathOptions) => Promise<string>;
+    open?: (itemId: string) => unknown;
+  }
+
+  interface EagleTag {
+    name: string;
+    color?: string;
+    count?: number;
+    [key: string]: unknown;
+  }
+
+  interface EagleTagAPI {
+    get?: () => Promise<EagleTag[] | string[]>;
   }
 
   interface EagleEventAPI {
@@ -102,6 +114,7 @@ declare global {
     log: EagleLog;
     folder?: EagleFolderAPI;
     item?: EagleItemAPI;
+    tag?: EagleTagAPI;
     app?: EagleAppAPI;
   }
 

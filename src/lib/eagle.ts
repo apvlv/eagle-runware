@@ -224,6 +224,40 @@ export async function updateItemTags(itemId: string, tags: string[]): Promise<vo
   await item.save();
 }
 
+export async function openItemInEagle(itemId: string): Promise<boolean> {
+  if (typeof eagle === 'undefined' || !eagle?.item) return false;
+  const open = eagle.item.open;
+  if (typeof open !== 'function') return false;
+  try {
+    await Promise.resolve(open.call(eagle.item, itemId));
+    return true;
+  } catch (err) {
+    console.warn('[Runware] eagle.item.open failed:', err);
+    return false;
+  }
+}
+
+export async function getAllExistingTags(): Promise<string[]> {
+  if (typeof eagle === 'undefined' || !eagle?.tag?.get) return [];
+  try {
+    const raw = await eagle.tag.get();
+    if (!Array.isArray(raw)) return [];
+    const names = new Set<string>();
+    for (const t of raw) {
+      if (typeof t === 'string') {
+        if (t.trim()) names.add(t.trim());
+      } else if (t && typeof t === 'object') {
+        const name = (t as { name?: unknown }).name;
+        if (typeof name === 'string' && name.trim()) names.add(name.trim());
+      }
+    }
+    return [...names].sort((a, b) => a.localeCompare(b));
+  } catch (err) {
+    console.warn('[Runware] eagle.tag.get failed:', err);
+    return [];
+  }
+}
+
 export async function appendAnnotation(itemId: string, text: string): Promise<void> {
   const item = await getItemByIdStrict(itemId);
   const prev = typeof item.annotation === 'string' ? item.annotation : '';
