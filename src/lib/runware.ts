@@ -1,3 +1,13 @@
+import { Runware, type IImage, type IError, type ITextToImage } from '@runware/sdk-js';
+import {
+  MODELS,
+  validateRequest,
+  type GptImage2Extras,
+  type ModelId,
+  type NanoBananaProExtras,
+} from './models';
+import { getSettings, subscribeSettings } from './settings';
+
 export interface TestConnectionResult {
   ok: boolean;
   message: string;
@@ -76,7 +86,6 @@ export async function testRunwareConnection(
             finish({ ok: true, message: 'Connection successful.' });
             return;
           }
-          // Any other data response means the WS is open and the key wasn't rejected.
           finish({ ok: true, message: 'Connection successful.' });
         }
       } catch (err) {
@@ -98,4 +107,130 @@ export async function testRunwareConnection(
       });
     };
   });
+}
+
+export type ImageRefKind = 'dataURI' | 'url' | 'uuid';
+export interface ImageRef {
+  kind: ImageRefKind;
+  value: string;
+}
+
+export type OutputFormat = 'PNG' | 'JPG' | 'WEBP';
+
+export interface GenerationRequestBase {
+  positivePrompt: string;
+  referenceImages?: ImageRef[];
+  width?: number;
+  height?: number;
+  numberResults?: number;
+  seed?: number;
+  outputFormat?: OutputFormat;
+}
+
+export type GenerationRequest =
+  | (GenerationRequestBase & { model: 'nano-banana-pro'; providerSettings?: NanoBananaProExtras })
+  | (GenerationRequestBase & { model: 'gpt-image-2'; providerSettings?: GptImage2Extras });
+
+export type GenerationResult = ITextToImage;
+
+type RunwareClientInstance = InstanceType<typeof Runware>;
+
+let _client: RunwareClientInstance | null = null;
+let _clientApiKey: string | null = null;
+
+subscribeSettings((s) => {
+  if (_client && s.apiKey !== _clientApiKey) {
+    try {
+      _client.disconnect?.();
+    } catch {
+      /* ignore */
+    }
+    _client = null;
+    _clientApiKey = null;
+  }
+});
+
+export function getClient(): RunwareClientInstance {
+  const { apiKey } = getSettings();
+  const trimmed = apiKey.trim();
+  if (!trimmed) {
+    throw new Error('Runware API key is not set.');
+  }
+  if (_client && _clientApiKey === trimmed) return _client;
+  if (_client) {
+    try {
+      _client.disconnect?.();
+    } catch {
+      /* ignore */
+    }
+  }
+  _client = new Runware({ apiKey: trimmed });
+  _clientApiKey = trimmed;
+  return _client;
+}
+
+function buildSdkPayload(req: GenerationRequest): Record<string, unknown> {
+  const spec = MODELS[req.model];
+  const payload: Record<string, unknown> = {
+    model: spec.air,
+    positivePrompt: req.positivePrompt,
+    numberResults: req.numberResults ?? 1,
+    outputType: 'URL',
+    includeCost: true,
+  };
+
+  if (req.width != null) payload.width = req.width;
+  if (req.height != null) payload.height = req.height;
+  if (req.seed != null) payload.seed = req.seed;
+  if (req.outputFormat) payload.outputFormat = req.outputFormat;
+  if (req.referenceImages && req.referenceImages.length > 0) {
+    payload.referenceImages = req.referenceImages.map((r) => r.value);
+  }
+
+  if (req.model === 'nano-banana-pro' && req.providerSettings) {
+    const ps = req.providerSettings;
+    const google: Record<string, unknown> = {};
+    if (ps.safetyTolerance !== undefined) google.safetyTolerance = ps.safetyTolerance;
+    if (ps.webSearch !== undefined) google.webSearch = ps.webSearch;
+    if (Object.keys(google).length > 0) payload.providerSettings = { google };
+
+    const settings: Record<string, unknown> = {};
+    if (ps.temperature !== undefined) settings.temperature = ps.temperature;
+    if (ps.topP !== undefined) settings.topP = ps.topP;
+    if (ps.systemPrompt !== undefined) settings.systemPrompt = ps.systemPrompt;
+    if (Object.keys(settings).length > 0) payload.settings = settings;
+  } else if (req.model === 'gpt-image-2' && req.providerSettings) {
+    const ps = req.providerSettings;
+    const openai: Record<string, unknown> = {};
+    if (ps.quality !== undefined) openai.quality = ps.quality;
+    if (ps.moderation !== undefined) openai.moderation = ps.moderation;
+    if (Object.keys(openai).length > 0) payload.providerSettings = { openai };
+  }
+
+  return payload;
+}
+
+export async function generate(
+  req: GenerationRequest,
+  onPartial?: (images: GenerationResult[]) => void,
+): Promise<GenerationResult[]> {
+  const error = validateRequest(req.model as ModelId, req);
+  if (error) throw new Error(error);
+
+  const payload = buildSdkPayload(req);
+  if (onPartial) {
+    payload.onPartialImages = (images: IImage[], err?: IError) => {
+      if (err) {
+        console.warn('[Runware] onPartialImages error:', err);
+        return;
+      }
+      onPartial(images as GenerationResult[]);
+    };
+  }
+
+  const client = getClient();
+  // The SDK's typed signature requires IRequestImage, but providerSettings has a
+  // narrower union than what we send. The interface allows extra keys, so cast.
+  const result = await client.requestImages(payload as never);
+  return result ?? [];
 }
