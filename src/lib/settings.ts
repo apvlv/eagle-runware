@@ -5,6 +5,12 @@ export type DefaultModel = 'nano-banana-pro' | 'gpt-image-2';
 
 export type ModelParams = Record<string, unknown>;
 
+export interface PromptPreset {
+  id: string;
+  name: string;
+  text: string;
+}
+
 export interface Settings {
   apiKey: string;
   defaultModel: DefaultModel;
@@ -13,6 +19,10 @@ export interface Settings {
   outputFormat: OutputFormat;
   numberResults: number;
   lastUsedModelParams: Partial<Record<DefaultModel, ModelParams>>;
+  shotFolderId?: string;
+  shotFolderName?: string;
+  promptPresets: PromptPreset[];
+  selectedPresetId?: string;
 }
 
 export const SETTINGS_STORAGE_KEY = 'runware-plugin:settings:v1';
@@ -25,6 +35,10 @@ export const DEFAULT_SETTINGS: Settings = {
   outputFormat: 'PNG',
   numberResults: 1,
   lastUsedModelParams: {},
+  shotFolderId: undefined,
+  shotFolderName: undefined,
+  promptPresets: [],
+  selectedPresetId: undefined,
 };
 
 export const OUTPUT_FORMATS: OutputFormat[] = ['PNG', 'WEBP', 'JPG'];
@@ -36,6 +50,21 @@ function isOutputFormat(v: unknown): v is OutputFormat {
 
 function isDefaultModel(v: unknown): v is DefaultModel {
   return v === 'nano-banana-pro' || v === 'gpt-image-2';
+}
+
+function sanitizePresets(raw: unknown): PromptPreset[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PromptPreset[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const o = entry as Record<string, unknown>;
+    const id = typeof o.id === 'string' ? o.id : '';
+    const name = typeof o.name === 'string' ? o.name : '';
+    const text = typeof o.text === 'string' ? o.text : '';
+    if (!id) continue;
+    out.push({ id, name, text });
+  }
+  return out;
 }
 
 function sanitize(raw: unknown): Settings {
@@ -52,6 +81,11 @@ function sanitize(raw: unknown): Settings {
     r.lastUsedModelParams && typeof r.lastUsedModelParams === 'object'
       ? (r.lastUsedModelParams as Settings['lastUsedModelParams'])
       : {};
+  const promptPresets = sanitizePresets(r.promptPresets);
+  const selectedPresetId =
+    typeof r.selectedPresetId === 'string' && promptPresets.some((p) => p.id === r.selectedPresetId)
+      ? r.selectedPresetId
+      : undefined;
   return {
     apiKey: typeof r.apiKey === 'string' ? r.apiKey : DEFAULT_SETTINGS.apiKey,
     defaultModel: isDefaultModel(r.defaultModel) ? r.defaultModel : DEFAULT_SETTINGS.defaultModel,
@@ -60,6 +94,10 @@ function sanitize(raw: unknown): Settings {
     outputFormat: isOutputFormat(r.outputFormat) ? r.outputFormat : DEFAULT_SETTINGS.outputFormat,
     numberResults,
     lastUsedModelParams,
+    shotFolderId: typeof r.shotFolderId === 'string' ? r.shotFolderId : undefined,
+    shotFolderName: typeof r.shotFolderName === 'string' ? r.shotFolderName : undefined,
+    promptPresets,
+    selectedPresetId,
   };
 }
 

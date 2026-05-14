@@ -10,7 +10,7 @@ import {
   type ResolutionPreset,
   type SafetyTolerance,
 } from './models';
-import { getSettings, setSettings, type OutputFormat } from './settings';
+import { getSettings, setSettings, useSettings, type OutputFormat } from './settings';
 import type { GenerationRequest, ImageRef } from './runware';
 
 export interface Reference {
@@ -149,6 +149,7 @@ export interface UsePromptFormResult {
 
 export function usePromptForm(model: ModelId): UsePromptFormResult {
   const initial = getSettings();
+  const [settings] = useSettings();
   const [positivePrompt, setPositivePrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -220,18 +221,26 @@ export function usePromptForm(model: ModelId): UsePromptFormResult {
     setSeed(Math.floor(Math.random() * 2 ** 31));
   }, []);
 
+  const selectedPreset = settings.selectedPresetId
+    ? settings.promptPresets.find((p) => p.id === settings.selectedPresetId)
+    : undefined;
+  const presetText = selectedPreset?.text.trim() ?? '';
+
   const buildRequest = useCallback((): GenerationRequest => {
     const seedValue = seed ?? undefined;
     const refImages: ImageRef[] | undefined =
       references.length > 0
         ? references.map((r) => ({ kind: 'dataURI', value: r.dataURI }))
         : undefined;
+    const composedPrompt = presetText
+      ? `${positivePrompt.trim()}\n\n${presetText}`.trim()
+      : positivePrompt;
     if (model === 'nano-banana-pro') {
       const dims = dimsFromPreset('nano-banana-pro', nbp.resolution, nbp.aspect);
       const sys = systemPrompt.trim();
       return {
         model: 'nano-banana-pro',
-        positivePrompt,
+        positivePrompt: composedPrompt,
         numberResults,
         seed: seedValue,
         width: dims.width,
@@ -249,7 +258,7 @@ export function usePromptForm(model: ModelId): UsePromptFormResult {
     }
     return {
       model: 'gpt-image-2',
-      positivePrompt,
+      positivePrompt: composedPrompt,
       numberResults,
       seed: seedValue,
       width: gpt.width,
@@ -261,7 +270,7 @@ export function usePromptForm(model: ModelId): UsePromptFormResult {
         moderation: gpt.moderation,
       },
     };
-  }, [model, positivePrompt, numberResults, seed, outputFormat, systemPrompt, nbp, gpt, references]);
+  }, [model, positivePrompt, numberResults, seed, outputFormat, systemPrompt, nbp, gpt, references, presetText]);
 
   const validationError = useMemo(() => {
     return validateRequest(model, buildRequest());

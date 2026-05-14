@@ -28,7 +28,11 @@ function normalizeTag(tag: string): string {
   return tag.trim();
 }
 
-export function buildInitialTags(model: ModelId, baseTags: readonly string[]): string[] {
+export function buildInitialTags(
+  model: ModelId,
+  baseTags: readonly string[],
+  extraTags: readonly string[] = [],
+): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   const push = (raw: string) => {
@@ -41,6 +45,7 @@ export function buildInitialTags(model: ModelId, baseTags: readonly string[]): s
   };
   for (const t of baseTags) push(t);
   for (const t of modelAutoTags(model)) push(t);
+  for (const t of extraTags) push(t);
   return out;
 }
 

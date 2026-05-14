@@ -13,6 +13,7 @@ import {
   useSettings,
   type DefaultModel,
   type OutputFormat,
+  type PromptPreset,
 } from '../lib/settings';
 import { testRunwareConnection, type TestConnectionResult } from '../lib/runware';
 
@@ -142,6 +143,34 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
   const removeTag = useCallback((tag: string) => {
     setDraft((d) => ({ ...d, defaultTags: d.defaultTags.filter((t) => t !== tag) }));
+  }, []);
+
+  const newPresetId = useCallback((): string => {
+    const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+    if (c?.randomUUID) return `preset-${c.randomUUID()}`;
+    return `preset-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }, []);
+
+  const addPreset = useCallback(() => {
+    setDraft((d) => ({
+      ...d,
+      promptPresets: [...d.promptPresets, { id: newPresetId(), name: '', text: '' }],
+    }));
+  }, [newPresetId]);
+
+  const updatePreset = useCallback((id: string, patch: Partial<PromptPreset>) => {
+    setDraft((d) => ({
+      ...d,
+      promptPresets: d.promptPresets.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    }));
+  }, []);
+
+  const removePreset = useCallback((id: string) => {
+    setDraft((d) => ({
+      ...d,
+      promptPresets: d.promptPresets.filter((p) => p.id !== id),
+      selectedPresetId: d.selectedPresetId === id ? undefined : d.selectedPresetId,
+    }));
   }, []);
 
   const handleTest = useCallback(async () => {
@@ -378,6 +407,63 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
               {foldersError && <p className="text-xs text-danger">{foldersError}</p>}
               {!foldersLoading && !foldersError && folders.length === 0 && (
                 <p className="text-xs text-fg-subtle">No folders found in this Eagle library.</p>
+              )}
+            </section>
+
+            <section className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
+                  Prompt presets
+                </label>
+                <button
+                  type="button"
+                  onClick={addPreset}
+                  className="rounded border border-border bg-bg px-2 py-1 text-xs text-fg hover:bg-bg-elevated"
+                >
+                  + Add preset
+                </button>
+              </div>
+              <p className="text-xs text-fg-subtle">
+                Reusable text appended to your prompt when selected from the prompt panel.
+              </p>
+              {draft.promptPresets.length === 0 ? (
+                <p className="rounded border border-dashed border-border bg-bg/40 px-3 py-2 text-xs text-fg-subtle">
+                  No presets yet. Click <em>Add preset</em> to define one.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {draft.promptPresets.map((preset) => (
+                    <li
+                      key={preset.id}
+                      className="space-y-1.5 rounded border border-border bg-bg/40 p-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={preset.name}
+                          onChange={(e) => updatePreset(preset.id, { name: e.target.value })}
+                          placeholder="Preset name"
+                          className="flex-1 rounded border border-border bg-bg px-2 py-1 text-sm text-fg placeholder:text-fg-subtle focus:border-focus focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePreset(preset.id)}
+                          className="rounded border border-border px-2 py-1 text-xs text-fg-muted hover:bg-bg-elevated hover:text-fg"
+                          aria-label={`Delete preset ${preset.name || 'unnamed'}`}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      <textarea
+                        value={preset.text}
+                        onChange={(e) => updatePreset(preset.id, { text: e.target.value })}
+                        placeholder="Text appended to the prompt…"
+                        rows={3}
+                        className="block w-full resize-y rounded border border-border bg-bg px-2 py-1.5 text-sm text-fg placeholder:text-fg-subtle focus:border-focus focus:outline-none"
+                      />
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
           </div>

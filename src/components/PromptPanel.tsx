@@ -17,7 +17,7 @@ import {
   snapDim,
   type UsePromptFormResult,
 } from '../lib/promptForm';
-import { OUTPUT_FORMATS, type OutputFormat } from '../lib/settings';
+import { OUTPUT_FORMATS, useSettings, type OutputFormat } from '../lib/settings';
 import { Skeleton } from './Skeleton';
 
 interface PromptPanelProps {
@@ -61,9 +61,14 @@ const MODERATION_LABELS: Record<OpenAiModeration, string> = {
 };
 
 export function PromptPanel({ loading = false, model, form }: PromptPanelProps) {
+  const [settings, updateSettings] = useSettings();
   const positiveRef = useRef<HTMLTextAreaElement | null>(null);
   const negativeRef = useRef<HTMLTextAreaElement | null>(null);
   const systemRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const selectedPreset = settings.selectedPresetId
+    ? settings.promptPresets.find((p) => p.id === settings.selectedPresetId)
+    : undefined;
 
   useEffect(() => {
     autoSize(positiveRef.current);
@@ -144,6 +149,46 @@ export function PromptPanel({ loading = false, model, form }: PromptPanelProps) 
             rows={4}
             className="block w-full resize-none rounded border border-border bg-bg px-3 py-2 text-sm leading-relaxed text-fg placeholder:text-fg-subtle focus:border-focus focus:outline-none"
           />
+        </section>
+
+        <section className="space-y-1.5">
+          <label
+            htmlFor="rw-preset"
+            className="text-xs font-medium uppercase tracking-wide text-fg-muted"
+          >
+            Prompt preset
+          </label>
+          <select
+            id="rw-preset"
+            value={settings.selectedPresetId ?? ''}
+            onChange={(e) =>
+              updateSettings({
+                selectedPresetId: e.target.value === '' ? undefined : e.target.value,
+              })
+            }
+            disabled={settings.promptPresets.length === 0}
+            className="block w-full rounded border border-border bg-bg px-2 py-1.5 text-sm text-fg focus:border-focus focus:outline-none disabled:opacity-50"
+          >
+            <option value="">No preset</option>
+            {settings.promptPresets.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name || '(unnamed)'}
+              </option>
+            ))}
+          </select>
+          {selectedPreset?.text.trim() && (
+            <p
+              className="rounded border border-border bg-bg/40 px-2 py-1.5 text-[11px] leading-relaxed text-fg-muted"
+              title="Appended to your prompt when you generate."
+            >
+              <span className="text-fg-subtle">Appended:</span> {selectedPreset.text}
+            </p>
+          )}
+          {settings.promptPresets.length === 0 && (
+            <p className="text-[11px] text-fg-subtle">
+              Define presets in Settings to append reusable text to every prompt.
+            </p>
+          )}
         </section>
 
         <CommonControls form={form} />

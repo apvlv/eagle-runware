@@ -82,7 +82,8 @@ export function SaveToEagleModal({
       setStar(existing.star);
     } else {
       setName(autoNameFor(job, result));
-      setTags(buildInitialTags(job.model, settings.defaultTags));
+      const shotTag = settings.shotFolderName?.trim();
+      setTags(buildInitialTags(job.model, settings.defaultTags, shotTag ? [shotTag] : []));
       setAnnotation(buildAnnotation(job, result));
       setStar(initialStar);
       // Folder default resolved async below.
