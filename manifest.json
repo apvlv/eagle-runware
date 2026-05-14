@@ -6,7 +6,7 @@
   "platform": "all",
   "arch": "all",
   "keywords": ["runware", "ai", "image", "generation", "stable-diffusion", "flux"],
-  "devTools": true,
+  "devTools": false,
   "main": {
     "url": "dist/index.html",
     "width": 1280,
