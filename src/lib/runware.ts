@@ -169,7 +169,13 @@ export function getClient(): RunwareClientInstance {
       /* ignore */
     }
   }
-  _client = new Runware({ apiKey: trimmed });
+  // The SDK's default per-request timeout is 60s. Provider-routed models
+  // (Nano Banana Pro, GPT Image 2) regularly take 60–180s per result, and
+  // multi-result jobs with references can run several minutes. Use a 10-minute
+  // ceiling so the SDK keeps waiting for partial images instead of throwing
+  // "Response could not be received from server" while the job is still
+  // generating server-side.
+  _client = new Runware({ apiKey: trimmed, timeoutDuration: 10 * 60 * 1000 });
   _clientApiKey = trimmed;
   return _client;
 }

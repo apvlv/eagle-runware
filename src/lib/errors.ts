@@ -139,7 +139,11 @@ const NETWORK_HINTS: readonly string[] = [
   'connection',
 ];
 
-const TIMEOUT_HINTS: readonly string[] = ['timed out', 'timeout'];
+const TIMEOUT_HINTS: readonly string[] = [
+  'timed out',
+  'timeout',
+  'response could not be received',
+];
 
 const TITLES: Record<ErrorBucket, string> = {
   auth: 'Invalid API key',
