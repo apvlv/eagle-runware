@@ -1,7 +1,7 @@
 {
   "name": "runware-ai-generator",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "Eagle plugin for generating images via the Runware AI API.",
   "scripts": {
