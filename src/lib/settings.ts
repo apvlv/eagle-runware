@@ -19,8 +19,7 @@ export interface Settings {
   outputFormat: OutputFormat;
   numberResults: number;
   lastUsedModelParams: Partial<Record<DefaultModel, ModelParams>>;
-  shotFolderId?: string;
-  shotFolderName?: string;
+  shotTag?: string;
   promptPresets: PromptPreset[];
   selectedPresetId?: string;
 }
@@ -35,8 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   outputFormat: 'PNG',
   numberResults: 1,
   lastUsedModelParams: {},
-  shotFolderId: undefined,
-  shotFolderName: undefined,
+  shotTag: undefined,
   promptPresets: [],
   selectedPresetId: undefined,
 };
@@ -94,8 +92,7 @@ function sanitize(raw: unknown): Settings {
     outputFormat: isOutputFormat(r.outputFormat) ? r.outputFormat : DEFAULT_SETTINGS.outputFormat,
     numberResults,
     lastUsedModelParams,
-    shotFolderId: typeof r.shotFolderId === 'string' ? r.shotFolderId : undefined,
-    shotFolderName: typeof r.shotFolderName === 'string' ? r.shotFolderName : undefined,
+    shotTag: typeof r.shotTag === 'string' && r.shotTag.trim() ? r.shotTag : undefined,
     promptPresets,
     selectedPresetId,
   };

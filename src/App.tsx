@@ -452,10 +452,8 @@ export default function App() {
         onOpenSettings={() => setDrawerOpen(true)}
         hasApiKey={hasApiKey}
         ready={ready}
-        shotFolderId={settings.shotFolderId}
-        onShotChange={(shotFolderId, shotFolderName) =>
-          setSettings({ shotFolderId, shotFolderName })
-        }
+        shotTag={settings.shotTag}
+        onShotChange={(shotTag) => setSettings({ shotTag })}
         devActions={devActions}
       />
       <main className="flex min-h-0 flex-1">

@@ -82,7 +82,7 @@ export function SaveToEagleModal({
       setStar(existing.star);
     } else {
       setName(autoNameFor(job, result));
-      const shotTag = settings.shotFolderName?.trim();
+      const shotTag = settings.shotTag?.trim();
       setTags(buildInitialTags(job.model, settings.defaultTags, shotTag ? [shotTag] : []));
       setAnnotation(buildAnnotation(job, result));
       setStar(initialStar);

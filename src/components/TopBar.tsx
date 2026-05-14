@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MODEL_LABELS, type ModelId } from '../lib/models';
 import { DEFAULT_MODELS } from '../lib/settings';
-import { listAllFolders, type FlatFolder } from '../lib/eagle';
+import { getAllExistingTags } from '../lib/eagle';
 
 interface TopBarProps {
   model: ModelId;
@@ -9,10 +9,12 @@ interface TopBarProps {
   onOpenSettings: () => void;
   hasApiKey: boolean;
   ready: boolean;
-  shotFolderId?: string;
-  onShotChange: (folderId: string | undefined, folderName: string | undefined) => void;
+  shotTag?: string;
+  onShotChange: (tag: string | undefined) => void;
   devActions?: React.ReactNode;
 }
+
+const SHOT_TAG_PREFIX = 'sh';
 
 export function TopBar({
   model,
@@ -20,49 +22,55 @@ export function TopBar({
   onOpenSettings,
   hasApiKey,
   ready,
-  shotFolderId,
+  shotTag,
   onShotChange,
   devActions,
 }: TopBarProps) {
-  const [folders, setFolders] = useState<FlatFolder[]>([]);
-  const [foldersError, setFoldersError] = useState<string | null>(null);
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [tagsError, setTagsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
-    listAllFolders()
-      .then((all) => {
+    getAllExistingTags()
+      .then((tags) => {
         if (cancelled) return;
-        setFolders(all);
-        setFoldersError(null);
+        setAllTags(tags);
+        setTagsError(null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setFoldersError(err instanceof Error ? err.message : String(err));
-        setFolders([]);
+        setTagsError(err instanceof Error ? err.message : String(err));
+        setAllTags([]);
       });
     return () => {
       cancelled = true;
     };
   }, [ready]);
 
-  // If the previously selected shot folder no longer exists, drop it.
-  useEffect(() => {
-    if (!shotFolderId) return;
-    if (folders.length === 0) return;
-    if (!folders.some((f) => f.id === shotFolderId)) {
-      onShotChange(undefined, undefined);
+  const shotTagOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of allTags) {
+      if (!t.toLowerCase().startsWith(SHOT_TAG_PREFIX)) continue;
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(t);
     }
-  }, [folders, shotFolderId, onShotChange]);
+    // Make sure a previously-selected shot tag remains visible even if it's
+    // no longer reported by Eagle (e.g. brand-new tag not yet indexed).
+    if (shotTag && !seen.has(shotTag.toLowerCase())) {
+      out.unshift(shotTag);
+    }
+    return out;
+  }, [allTags, shotTag]);
 
-  const handleShotChange = (id: string) => {
-    if (id === '') {
-      onShotChange(undefined, undefined);
-      return;
-    }
-    const folder = folders.find((f) => f.id === id);
-    onShotChange(id, folder?.name);
+  const handleShotChange = (value: string) => {
+    onShotChange(value === '' ? undefined : value);
   };
+
+  const dropdownDisabled = !ready || shotTagOptions.length === 0;
 
   return (
     <header className="flex flex-none items-center justify-between gap-3 border-b border-border bg-bg-panel px-4 py-2.5">
@@ -87,22 +95,23 @@ export function TopBar({
         <label className="flex items-center gap-2 text-xs text-fg-muted">
           <span className="hidden sm:inline">Shot</span>
           <select
-            value={shotFolderId ?? ''}
+            value={shotTag ?? ''}
             onChange={(e) => handleShotChange(e.target.value)}
-            aria-label="Shot (Eagle folder to tag generated images with)"
+            aria-label="Shot (Eagle tag starting with 'sh' applied to generated images)"
             title={
-              foldersError
-                ? `Could not load folders: ${foldersError}`
-                : 'Tag generated images with this folder name so they land in matching smart folders.'
+              tagsError
+                ? `Could not load tags: ${tagsError}`
+                : shotTagOptions.length === 0
+                  ? `No Eagle tags starting with "${SHOT_TAG_PREFIX}" found.`
+                  : 'Tag generated images with this shot tag.'
             }
-            disabled={!ready || folders.length === 0}
+            disabled={dropdownDisabled}
             className="max-w-[14rem] truncate rounded border border-border bg-bg px-2 py-1 text-xs font-medium text-fg focus:border-focus focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             <option value="">No shot</option>
-            {folders.map((f) => (
-              <option key={f.id} value={f.id}>
-                {'— '.repeat(f.depth)}
-                {f.name}
+            {shotTagOptions.map((t) => (
+              <option key={t} value={t}>
+                {t}
               </option>
             ))}
           </select>
