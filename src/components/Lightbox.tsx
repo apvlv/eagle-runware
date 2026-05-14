@@ -3,23 +3,31 @@ import { MODEL_LABELS } from '../lib/models';
 import type { GenerationResult } from '../lib/runware';
 import type { Job } from '../state/jobs';
 import { getSave } from '../state/saves';
+import type { Reference } from '../lib/promptForm';
 
-export interface LightboxItem {
-  job: Job;
-  result: GenerationResult;
-}
+export type LightboxItem =
+  | { kind: 'result'; job: Job; result: GenerationResult }
+  | { kind: 'reference'; reference: Reference };
 
 interface LightboxProps {
   item: LightboxItem;
   onClose: () => void;
 }
 
-export function lightboxImgSrc(r: GenerationResult): string | null {
+export function resultImgSrc(r: GenerationResult): string | null {
   if (r.imageURL) return r.imageURL;
   if (r.imageDataURI) return r.imageDataURI;
   if (r.imageBase64Data) return `data:image/png;base64,${r.imageBase64Data}`;
   return null;
 }
+
+export function lightboxItemSrc(item: LightboxItem): string | null {
+  if (item.kind === 'result') return resultImgSrc(item.result);
+  return item.reference.dataURI || null;
+}
+
+// Back-compat alias used by callers that already have a GenerationResult in hand.
+export const lightboxImgSrc = resultImgSrc;
 
 export function lightboxSaveKey(job: Job, r: GenerationResult): string {
   return r.imageUUID ?? r.imageURL ?? `${job.id}-${r.taskUUID ?? ''}`;
@@ -30,6 +38,12 @@ function formatCost(cost?: number): string | null {
   if (cost === 0) return '$0.00';
   if (cost < 0.01) return `$${cost.toFixed(4)}`;
   return `$${cost.toFixed(3)}`;
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const MIN_SCALE = 0.25;
@@ -47,12 +61,47 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
+interface LightboxInfoProps {
+  item: LightboxItem;
+}
+
+function LightboxInfo({ item }: LightboxInfoProps) {
+  if (item.kind === 'result') {
+    const { job, result } = item;
+    const cost = formatCost(result.cost);
+    const modelLabel = MODEL_LABELS[job.model];
+    const saved = getSave(lightboxSaveKey(job, result));
+    return (
+      <>
+        <span className="font-sans font-semibold">{modelLabel}</span>
+        {result.seed != null && <span>seed {result.seed}</span>}
+        {cost && <span>{cost}</span>}
+        {saved && <span className="font-sans text-success">Saved · {saved.name}</span>}
+      </>
+    );
+  }
+  const r = item.reference;
+  const kindLabel = r.kind === 'library' ? 'Library' : 'Upload';
+  return (
+    <>
+      <span className="font-sans font-semibold">Reference</span>
+      <span className="font-sans text-fg-muted">{kindLabel}</span>
+      <span className="max-w-[28rem] truncate font-sans">{r.name}</span>
+      <span>{formatBytes(r.bytes)}</span>
+    </>
+  );
+}
+
+function lightboxAltText(item: LightboxItem): string {
+  if (item.kind === 'result') {
+    return `Result seed ${item.result.seed ?? ''}`;
+  }
+  return item.reference.name;
+}
+
 export function Lightbox({ item, onClose }: LightboxProps) {
-  const { job, result } = item;
-  const src = lightboxImgSrc(result);
-  const cost = formatCost(result.cost);
-  const modelLabel = MODEL_LABELS[job.model];
-  const saved = getSave(lightboxSaveKey(job, result));
+  const src = lightboxItemSrc(item);
+  const altText = lightboxAltText(item);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [transform, setTransform] = useState<Transform>(IDENTITY);
@@ -65,7 +114,7 @@ export function Lightbox({ item, onClose }: LightboxProps) {
     setTransform(IDENTITY);
   }, [item]);
 
-  // Escape closes; native (non-passive) wheel listener so we can preventDefault.
+  // Escape closes; '0' resets transform.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -75,6 +124,7 @@ export function Lightbox({ item, onClose }: LightboxProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Native (non-passive) wheel listener so preventDefault works.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -83,7 +133,6 @@ export function Lightbox({ item, onClose }: LightboxProps) {
       const rect = el.getBoundingClientRect();
       const cx = e.clientX - (rect.left + rect.width / 2);
       const cy = e.clientY - (rect.top + rect.height / 2);
-      // ctrlKey set means trackpad pinch on macOS — finer steps.
       const sensitivity = e.ctrlKey ? 0.01 : 0.0015;
       const rawFactor = Math.exp(-e.deltaY * sensitivity);
       setTransform((t) => {
@@ -128,24 +177,24 @@ export function Lightbox({ item, onClose }: LightboxProps) {
   }, []);
 
   const zoomPct = Math.round(transform.scale * 100);
-  const transformed = transform.scale !== 1 || transform.tx !== 0 || transform.ty !== 0;
+  const transformed =
+    transform.scale !== 1 || transform.tx !== 0 || transform.ty !== 0;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-bg-overlay/80 p-6"
       role="dialog"
       aria-modal="true"
-      aria-label="Result preview"
+      aria-label="Image preview"
       data-testid="result-lightbox"
       onClick={onClose}
     >
       <div
         ref={containerRef}
-        className="flex max-h-full w-full max-w-6xl flex-col items-center gap-3 overflow-hidden select-none"
+        className="flex max-h-full w-full max-w-6xl select-none flex-col items-center gap-3 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         onMouseDown={handleMouseDown}
         onDoubleClick={(e) => {
-          // Reset only when double-clicking the image area, not the info bar buttons.
           const target = e.target as HTMLElement;
           if (target.closest('button')) return;
           reset();
@@ -155,7 +204,7 @@ export function Lightbox({ item, onClose }: LightboxProps) {
         {src ? (
           <img
             src={src}
-            alt={`Result seed ${result.seed ?? ''}`}
+            alt={altText}
             className="max-h-[85vh] w-auto max-w-full rounded-md border border-border bg-bg shadow-2xl"
             draggable={false}
             style={{
@@ -171,10 +220,7 @@ export function Lightbox({ item, onClose }: LightboxProps) {
           </div>
         )}
         <div className="flex flex-wrap items-center gap-3 rounded bg-bg-panel px-3 py-2 font-mono text-[11px] text-fg shadow-md">
-          <span className="font-sans font-semibold">{modelLabel}</span>
-          {result.seed != null && <span>seed {result.seed}</span>}
-          {cost && <span>{cost}</span>}
-          {saved && <span className="font-sans text-success">Saved · {saved.name}</span>}
+          <LightboxInfo item={item} />
           <span className="text-fg-subtle">{zoomPct}%</span>
           {transformed && (
             <button

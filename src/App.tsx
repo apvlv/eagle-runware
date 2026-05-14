@@ -144,7 +144,7 @@ export default function App() {
     for (let i = jobsState.jobs.length - 1; i >= 0; i--) {
       const j = jobsState.jobs[i];
       if (j.results.length === 0) continue;
-      return { job: j, result: j.results[j.results.length - 1] };
+      return { kind: 'result', job: j, result: j.results[j.results.length - 1] };
     }
     return null;
   }, [jobsState.jobs]);

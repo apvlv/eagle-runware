@@ -216,7 +216,7 @@ export function ResultsGrid({
               <ResultCard
                 key={item.key}
                 item={item}
-                onOpen={() => onOpenLightbox({ job: item.job, result: item.result })}
+                onOpen={() => onOpenLightbox({ kind: 'result', job: item.job, result: item.result })}
                 onVariation={() => onVariation(item.job)}
                 onUseAsReference={() => onUseAsReference(item.job, item.result)}
                 refBusy={refBusyKey === resultBusyKey(item.job, item.result)}

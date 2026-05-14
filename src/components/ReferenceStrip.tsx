@@ -10,12 +10,14 @@ import {
 import { toast } from '../lib/toast';
 import type { Reference } from '../lib/promptForm';
 import { Skeleton } from './Skeleton';
+import type { LightboxItem } from './Lightbox';
 
 interface ReferenceStripProps {
   loading?: boolean;
   model: ModelId;
   references: Reference[];
   setReferences: (next: Reference[] | ((prev: Reference[]) => Reference[])) => void;
+  onOpenLightbox?: (item: LightboxItem) => void;
 }
 
 function uploadId(): string {
@@ -79,6 +81,7 @@ export function ReferenceStrip({
   model,
   references,
   setReferences,
+  onOpenLightbox,
 }: ReferenceStripProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -359,7 +362,18 @@ export function ReferenceStrip({
             Drop or paste images, drag from Eagle, or pull from selection.
           </p>
         ) : (
-          references.map((r) => <ReferenceTile key={r.id} item={r} onRemove={handleRemove} />)
+          references.map((r) => (
+            <ReferenceTile
+              key={r.id}
+              item={r}
+              onRemove={handleRemove}
+              onOpen={
+                onOpenLightbox
+                  ? () => onOpenLightbox({ kind: 'reference', reference: r })
+                  : undefined
+              }
+            />
+          ))
         )}
       </div>
 
@@ -428,24 +442,32 @@ export function ReferenceStrip({
 interface ReferenceTileProps {
   item: Reference;
   onRemove: (id: string) => void;
+  onOpen?: () => void;
 }
 
-function ReferenceTile({ item: r, onRemove }: ReferenceTileProps) {
+function ReferenceTile({ item: r, onRemove, onOpen }: ReferenceTileProps) {
   const badge = r.kind === 'library' ? 'Library' : 'Upload';
   const sizeText = formatBytes(r.bytes);
+  const imgClassName = 'h-24 w-24 rounded border border-border object-cover';
   return (
     <div
       className="group relative flex-none"
-      title={`${r.name} · ${badge} · ${sizeText}`}
+      title={`${r.name} · ${badge} · ${sizeText}${onOpen ? ' · click to enlarge' : ''}`}
       data-testid="reference-tile"
       data-ref-kind={r.kind}
     >
-      <img
-        src={r.dataURI}
-        alt={r.name}
-        className="h-24 w-24 rounded border border-border object-cover"
-        draggable={false}
-      />
+      {onOpen ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`Preview ${r.name}`}
+          className="block cursor-zoom-in rounded focus:outline-none focus:ring-2 focus:ring-focus"
+        >
+          <img src={r.dataURI} alt={r.name} className={imgClassName} draggable={false} />
+        </button>
+      ) : (
+        <img src={r.dataURI} alt={r.name} className={imgClassName} draggable={false} />
+      )}
       <span
         className={
           'pointer-events-none absolute left-1 top-1 rounded px-1 py-0 text-[9px] font-semibold uppercase tracking-wide ' +

@@ -2,7 +2,7 @@ import { ReferenceStrip } from './ReferenceStrip';
 import { GenerateButton } from './GenerateButton';
 import { StatusBar, type StatusKind, type StatusProgress } from './StatusBar';
 import { ErrorBanner } from './ErrorBanner';
-import { lightboxImgSrc, type LightboxItem } from './Lightbox';
+import { lightboxItemSrc, type LightboxItem } from './Lightbox';
 import { MODEL_LABELS, type ModelId } from '../lib/models';
 import type { Reference } from '../lib/promptForm';
 import type { MappedError } from '../lib/errors';
@@ -57,9 +57,10 @@ export function CenterPanel({
   onDismissError,
   onOpenSettings,
 }: CenterPanelProps) {
-  const latestSrc = latestItem ? lightboxImgSrc(latestItem.result) : null;
-  const latestCost = latestItem ? formatCost(latestItem.result.cost) : null;
-  const latestModelLabel = latestItem ? MODEL_LABELS[latestItem.job.model] : null;
+  const latestResult = latestItem?.kind === 'result' ? latestItem : null;
+  const latestSrc = latestResult ? lightboxItemSrc(latestResult) : null;
+  const latestCost = latestResult ? formatCost(latestResult.result.cost) : null;
+  const latestModelLabel = latestResult ? MODEL_LABELS[latestResult.job.model] : null;
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-bg">
@@ -68,6 +69,7 @@ export function CenterPanel({
         model={model}
         references={references}
         setReferences={setReferences}
+        onOpenLightbox={onOpenLightbox}
       />
       <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-6 py-6">
         {error && (
@@ -80,25 +82,25 @@ export function CenterPanel({
             />
           </div>
         )}
-        {latestItem && latestSrc ? (
+        {latestResult && latestSrc ? (
           <div className="flex w-full flex-1 flex-col items-center justify-center gap-2">
             <button
               type="button"
-              onClick={() => onOpenLightbox?.(latestItem)}
+              onClick={() => onOpenLightbox?.(latestResult)}
               className="group flex max-h-full w-full items-center justify-center focus:outline-none"
               aria-label="Open latest result in lightbox"
               title="Click to open in lightbox"
             >
               <img
                 src={latestSrc}
-                alt={`Latest result seed ${latestItem.result.seed ?? ''}`}
+                alt={`Latest result seed ${latestResult.result.seed ?? ''}`}
                 className="max-h-[60vh] w-auto max-w-full rounded-md border border-border bg-bg-panel object-contain shadow-lg transition-transform group-hover:scale-[1.01]"
                 draggable={false}
               />
             </button>
             <div className="flex flex-wrap items-center gap-3 rounded bg-bg-panel px-3 py-1.5 font-mono text-[11px] text-fg-muted shadow-sm">
               <span className="font-sans font-semibold text-fg">{latestModelLabel}</span>
-              {latestItem.result.seed != null && <span>seed {latestItem.result.seed}</span>}
+              {latestResult.result.seed != null && <span>seed {latestResult.result.seed}</span>}
               {latestCost && <span>{latestCost}</span>}
               <span className="font-sans text-[10px] text-fg-subtle">Click to enlarge</span>
             </div>

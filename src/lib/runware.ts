@@ -138,6 +138,10 @@ type RunwareClientInstance = InstanceType<typeof Runware>;
 let _client: RunwareClientInstance | null = null;
 let _clientApiKey: string | null = null;
 
+// Maps a reference-image value (data URI or raw base64) to the imageUUID
+// returned by a prior `imageUpload`. Cleared when the client is reset.
+const refUploadCache = new Map<string, string>();
+
 subscribeSettings((s) => {
   if (_client && s.apiKey !== _clientApiKey) {
     try {
@@ -147,6 +151,7 @@ subscribeSettings((s) => {
     }
     _client = null;
     _clientApiKey = null;
+    refUploadCache.clear();
   }
 });
 
@@ -173,12 +178,44 @@ export async function disconnectClient(): Promise<void> {
   const client = _client;
   _client = null;
   _clientApiKey = null;
+  refUploadCache.clear();
   if (!client) return;
   try {
     await client.disconnect?.();
   } catch (err) {
     console.warn('[Runware] disconnect failed:', err);
   }
+}
+
+async function uploadReferenceImage(
+  client: RunwareClientInstance,
+  ref: ImageRef,
+): Promise<string> {
+  // URLs and pre-existing UUIDs can be passed through unchanged.
+  if (ref.kind === 'url' || ref.kind === 'uuid') return ref.value;
+  if (/^https?:\/\//i.test(ref.value)) return ref.value;
+
+  const cached = refUploadCache.get(ref.value);
+  if (cached) return cached;
+
+  const uploadFn = (client as unknown as {
+    imageUpload?: (p: { image: string }) => Promise<{ imageUUID?: unknown; imageURL?: unknown }>;
+  }).imageUpload;
+  if (typeof uploadFn !== 'function') {
+    throw new Error('Runware SDK is missing imageUpload — cannot upload reference image.');
+  }
+
+  const result = await uploadFn.call(client, { image: ref.value });
+  const uuid =
+    (typeof result?.imageUUID === 'string' && result.imageUUID) ||
+    (typeof result?.imageUUID === 'number' && String(result.imageUUID)) ||
+    (typeof result?.imageURL === 'string' && result.imageURL) ||
+    '';
+  if (!uuid) {
+    throw new Error('Reference image upload did not return an imageUUID.');
+  }
+  refUploadCache.set(ref.value, uuid);
+  return uuid;
 }
 
 const DEFAULT_SDK_RETRY = 2;
@@ -198,9 +235,8 @@ function buildSdkPayload(req: GenerationRequest): Record<string, unknown> {
   if (req.height != null) payload.height = req.height;
   if (req.seed != null) payload.seed = req.seed;
   if (req.outputFormat) payload.outputFormat = req.outputFormat;
-  if (req.referenceImages && req.referenceImages.length > 0) {
-    payload.referenceImages = req.referenceImages.map((r) => r.value);
-  }
+  // referenceImages are uploaded separately in generate() to keep the inference
+  // payload small enough for Runware's WebSocket; populated after upload.
 
   if (req.model === 'nano-banana-pro' && req.providerSettings) {
     const ps = req.providerSettings;
@@ -244,6 +280,19 @@ export async function generate(
   }
 
   const client = getClient();
+
+  if (req.referenceImages && req.referenceImages.length > 0) {
+    try {
+      const uuids = await Promise.all(
+        req.referenceImages.map((ref) => uploadReferenceImage(client, ref)),
+      );
+      payload.referenceImages = uuids;
+    } catch (err) {
+      console.warn('[Runware] reference image upload failed:', err);
+      throw err;
+    }
+  }
+
   // The SDK's typed signature requires IRequestImage, but providerSettings has a
   // narrower union than what we send. The interface allows extra keys, so cast.
   const result = await client.requestImages(payload as never);
