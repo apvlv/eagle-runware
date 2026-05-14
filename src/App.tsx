@@ -3,6 +3,12 @@ import { SettingsDrawer } from './components/SettingsDrawer';
 import { useSettings } from './lib/settings';
 import { generate, type GenerationRequest } from './lib/runware';
 import { dimsFromPreset, type ModelId } from './lib/models';
+import {
+  getSelectedItems,
+  itemToDataURI,
+  saveGeneratedToLibrary,
+  setItemStar,
+} from './lib/eagle';
 
 const SMOKE_PROMPT =
   'A wide cinematic photograph of a single glass orb resting on weathered driftwood at sunrise, ' +
@@ -32,10 +38,51 @@ async function runSmoke(model: ModelId): Promise<void> {
   }
 }
 
+const TRANSPARENT_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+async function runEagleSmoke(): Promise<void> {
+  console.log('[Eagle:smoke] starting');
+  try {
+    const selected = await getSelectedItems();
+    console.log(`[Eagle:smoke] selected items: ${selected.length}`);
+    if (selected.length > 0) {
+      const item = selected[0];
+      try {
+        const { dataURI, bytes, mime } = itemToDataURI(item);
+        const base64Length = dataURI.length - dataURI.indexOf(',') - 1;
+        console.log(
+          `[Eagle:smoke] selected item ${item.id} (${item.name}.${item.ext}) → ${mime}, ` +
+            `${bytes} bytes, base64 length ${base64Length}`,
+        );
+      } catch (err) {
+        console.warn('[Eagle:smoke] could not build data URI:', err);
+      }
+    } else {
+      console.log('[Eagle:smoke] no items selected — skipping data URI test.');
+    }
+
+    const itemId = await saveGeneratedToLibrary(
+      { imageBase64Data: TRANSPARENT_PNG_BASE64, outputFormat: 'PNG' },
+      {
+        name: `Runware smoke ${new Date().toISOString()}`,
+        tags: ['runware-smoke'],
+        annotation: 'Created by the Eagle integration smoke test.',
+      },
+    );
+    console.log(`[Eagle:smoke] created item ${itemId}`);
+    await setItemStar(itemId, 4);
+    console.log(`[Eagle:smoke] rated item ${itemId} with 4 stars`);
+  } catch (err) {
+    console.error('[Eagle:smoke] failed:', err);
+  }
+}
+
 export default function App() {
   const [ready, setReady] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [smokeRunning, setSmokeRunning] = useState(false);
+  const [eagleSmokeRunning, setEagleSmokeRunning] = useState(false);
   const [settings] = useSettings();
   const hasApiKey = settings.apiKey.trim().length > 0;
   const isDev = import.meta.env.DEV;
@@ -47,6 +94,15 @@ export default function App() {
       await runSmoke('gpt-image-2');
     } finally {
       setSmokeRunning(false);
+    }
+  };
+
+  const handleEagleSmoke = async () => {
+    setEagleSmokeRunning(true);
+    try {
+      await runEagleSmoke();
+    } finally {
+      setEagleSmokeRunning(false);
     }
   };
 
@@ -81,6 +137,18 @@ export default function App() {
               title="Dev only — runs a 1-image generation against each model and logs the response."
             >
               {smokeRunning ? 'Smoke testing…' : '__dev__ smoke'}
+            </button>
+          )}
+          {isDev && (
+            <button
+              type="button"
+              onClick={handleEagleSmoke}
+              disabled={eagleSmokeRunning}
+              data-testid="dev-eagle-smoke"
+              className="rounded border border-emerald-700/60 px-3 py-1 text-xs text-emerald-300 hover:bg-emerald-900/30 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Dev only — reads the currently selected Eagle item, then creates a tagged 4-star item."
+            >
+              {eagleSmokeRunning ? 'Eagle smoke…' : '__dev__ eagle'}
             </button>
           )}
           <button
