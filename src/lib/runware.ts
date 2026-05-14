@@ -187,6 +187,12 @@ export async function disconnectClient(): Promise<void> {
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function stripDataUriPrefix(value: string): string {
+  return value.replace(/^data:[^;]+;base64,/, '');
+}
+
 async function uploadReferenceImage(
   client: RunwareClientInstance,
   ref: ImageRef,
@@ -199,23 +205,39 @@ async function uploadReferenceImage(
   if (cached) return cached;
 
   const uploadFn = (client as unknown as {
-    imageUpload?: (p: { image: string }) => Promise<{ imageUUID?: unknown; imageURL?: unknown }>;
+    imageUpload?: (p: { image: string }) => Promise<{
+      imageUUID?: unknown;
+      imageURL?: unknown;
+    }>;
   }).imageUpload;
   if (typeof uploadFn !== 'function') {
     throw new Error('Runware SDK is missing imageUpload — cannot upload reference image.');
   }
 
-  const result = await uploadFn.call(client, { image: ref.value });
-  const uuid =
-    (typeof result?.imageUUID === 'string' && result.imageUUID) ||
-    (typeof result?.imageUUID === 'number' && String(result.imageUUID)) ||
-    (typeof result?.imageURL === 'string' && result.imageURL) ||
-    '';
-  if (!uuid) {
-    throw new Error('Reference image upload did not return an imageUUID.');
+  // Runware's imageUpload task wants raw base64, not a data URI with the
+  // `data:image/...;base64,` prefix.
+  const payload = stripDataUriPrefix(ref.value);
+  const result = await uploadFn.call(client, { image: payload });
+  console.log('[Runware] imageUpload response:', result);
+
+  // Prefer the public URL — the typed `imageUUID` field is sometimes a numeric
+  // internal id that Runware does not accept as a referenceImages value.
+  // Fall back to imageUUID only when it looks like a real UUID string.
+  let value = '';
+  if (typeof result?.imageURL === 'string' && /^https?:\/\//i.test(result.imageURL)) {
+    value = result.imageURL;
+  } else if (typeof result?.imageUUID === 'string' && UUID_RE.test(result.imageUUID)) {
+    value = result.imageUUID;
+  } else if (typeof result?.imageUUID === 'string' && result.imageUUID) {
+    value = result.imageUUID;
   }
-  refUploadCache.set(ref.value, uuid);
-  return uuid;
+  if (!value) {
+    throw new Error(
+      `Reference image upload returned no usable URL or UUID (got ${JSON.stringify(result)}).`,
+    );
+  }
+  refUploadCache.set(ref.value, value);
+  return value;
 }
 
 const DEFAULT_SDK_RETRY = 2;
