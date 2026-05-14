@@ -154,7 +154,7 @@ export function getClient(): RunwareClientInstance {
   const { apiKey } = getSettings();
   const trimmed = apiKey.trim();
   if (!trimmed) {
-    throw new Error('Runware API key is not set.');
+    throw { error: { code: 'invalidApiKey', message: 'Runware API key is not set.' } };
   }
   if (_client && _clientApiKey === trimmed) return _client;
   if (_client) {
@@ -181,6 +181,8 @@ export async function disconnectClient(): Promise<void> {
   }
 }
 
+const DEFAULT_SDK_RETRY = 2;
+
 function buildSdkPayload(req: GenerationRequest): Record<string, unknown> {
   const spec = MODELS[req.model];
   const payload: Record<string, unknown> = {
@@ -189,6 +191,7 @@ function buildSdkPayload(req: GenerationRequest): Record<string, unknown> {
     numberResults: req.numberResults ?? 1,
     outputType: 'URL',
     includeCost: true,
+    retry: DEFAULT_SDK_RETRY,
   };
 
   if (req.width != null) payload.width = req.width;

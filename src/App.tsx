@@ -21,11 +21,13 @@ import {
 import {
   cancelJob,
   isActiveStatus,
+  retryJob,
   startJob,
   useJobsState,
   type Job,
 } from './state/jobs';
 import type { StatusKind } from './components/StatusBar';
+import { mapRunwareError, type MappedError } from './lib/errors';
 
 const SMOKE_PROMPT =
   'A wide cinematic photograph of a single glass orb resting on weathered driftwood at sunrise, ' +
@@ -122,6 +124,9 @@ export default function App() {
   const [eagleSmokeRunning, setEagleSmokeRunning] = useState(false);
   const [refBusyKey, setRefBusyKey] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [preflightError, setPreflightError] = useState<MappedError | null>(null);
+  const [dismissedJobErrorId, setDismissedJobErrorId] = useState<string | null>(null);
+  const [autoOpenedForJobId, setAutoOpenedForJobId] = useState<string | null>(null);
   const [settings] = useSettings();
   const hasApiKey = settings.apiKey.trim().length > 0;
   const isDev = import.meta.env.DEV;
@@ -134,6 +139,14 @@ export default function App() {
   }, [jobsState]);
 
   const busy = !!currentJob && isActiveStatus(currentJob.status);
+
+  const jobError: MappedError | null = useMemo(() => {
+    if (!currentJob || currentJob.status !== 'error') return null;
+    if (dismissedJobErrorId === currentJob.id) return null;
+    return currentJob.errorDetails ?? mapRunwareError(currentJob.error ?? 'Generation failed.');
+  }, [currentJob, dismissedJobErrorId]);
+
+  const activeError: MappedError | null = preflightError ?? jobError;
 
   useEffect(() => {
     initTheme();
@@ -164,21 +177,64 @@ export default function App() {
 
   const handleGenerate = useCallback(() => {
     if (!hasApiKey) {
-      toast.warn('API key required', {
-        description: 'Set your Runware API key in Settings to generate.',
+      const mapped = mapRunwareError({
+        error: { code: 'invalidApiKey', message: 'Set your Runware API key in Settings to generate.' },
       });
+      setPreflightError(mapped);
       setDrawerOpen(true);
       return;
     }
     if (busy) return;
     try {
       const request = promptForm.buildRequest();
+      setPreflightError(null);
       startJob(request);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error('Cannot generate', { description: msg });
+      const mapped = mapRunwareError(err);
+      // Local validation lands in the validation bucket; surface inline + toast.
+      setPreflightError({ ...mapped, bucket: 'validation', title: 'Request is invalid' });
+      toast.error('Cannot generate', { description: mapped.message });
     }
   }, [hasApiKey, busy, promptForm]);
+
+  const handleRetry = useCallback(() => {
+    setPreflightError(null);
+    if (!hasApiKey) {
+      const mapped = mapRunwareError({
+        error: { code: 'invalidApiKey', message: 'Set your Runware API key in Settings to generate.' },
+      });
+      setPreflightError(mapped);
+      setDrawerOpen(true);
+      return;
+    }
+    if (currentJob && currentJob.status === 'error') {
+      setDismissedJobErrorId(currentJob.id);
+      retryJob(currentJob.id);
+      return;
+    }
+    handleGenerate();
+  }, [hasApiKey, currentJob, handleGenerate]);
+
+  const handleDismissError = useCallback(() => {
+    if (preflightError) setPreflightError(null);
+    else if (currentJob) setDismissedJobErrorId(currentJob.id);
+  }, [preflightError, currentJob]);
+
+  // Auto-open the settings drawer the first time a job lands in the auth bucket.
+  useEffect(() => {
+    if (!jobError || jobError.bucket !== 'auth') return;
+    if (!currentJob) return;
+    if (autoOpenedForJobId === currentJob.id) return;
+    setAutoOpenedForJobId(currentJob.id);
+    setDrawerOpen(true);
+  }, [jobError, currentJob, autoOpenedForJobId]);
+
+  // Clear the preflight error as soon as the user fills in a key.
+  useEffect(() => {
+    if (hasApiKey && preflightError?.bucket === 'auth') {
+      setPreflightError(null);
+    }
+  }, [hasApiKey, preflightError]);
 
   const handleCancel = useCallback(() => {
     if (currentJob && isActiveStatus(currentJob.status)) {
@@ -346,19 +402,21 @@ export default function App() {
     if (currentJob) {
       const got = currentJob.results.length;
       const expected = currentJob.expected;
+      const cost = formatCost(currentJob.costUSD);
       if (isActiveStatus(currentJob.status)) {
         const elapsed = formatElapsed(Date.now() - currentJob.startedAt);
+        const hintParts = [elapsed, MODEL_LABELS[currentJob.model]];
+        if (cost) hintParts.push(cost);
         return {
           status: 'busy',
           statusMessage: `Generating ${Math.min(got, expected)}/${expected}…`,
-          statusHint: `${elapsed} · ${MODEL_LABELS[currentJob.model]}`,
+          statusHint: hintParts.join(' · '),
         };
       }
       if (currentJob.status === 'done') {
         const elapsed = currentJob.finishedAt
           ? formatElapsed(currentJob.finishedAt - currentJob.startedAt)
           : '—';
-        const cost = formatCost(currentJob.costUSD);
         return {
           status: 'success',
           statusMessage: `Done · ${elapsed}${cost ? ` · ${cost}` : ''}`,
@@ -366,15 +424,17 @@ export default function App() {
         };
       }
       if (currentJob.status === 'error') {
+        const title = currentJob.errorDetails?.title;
+        const msg = currentJob.error ?? 'Generation failed.';
         return {
           status: 'error',
-          statusMessage: currentJob.error ?? 'Generation failed.',
+          statusMessage: title ? `${title} · ${msg}` : msg,
         };
       }
       if (currentJob.status === 'cancelled') {
         return {
           status: 'idle',
-          statusMessage: `Cancelled · ${got}/${expected} delivered`,
+          statusMessage: `Cancelled · ${got}/${expected} delivered${cost ? ` · ${cost}` : ''}`,
         };
       }
     }
@@ -408,6 +468,10 @@ export default function App() {
           model={settings.defaultModel}
           references={promptForm.references}
           setReferences={promptForm.setReferences}
+          error={activeError}
+          onRetry={handleRetry}
+          onDismissError={handleDismissError}
+          onOpenSettings={() => setDrawerOpen(true)}
         />
         <ResultsGrid
           loading={!ready}

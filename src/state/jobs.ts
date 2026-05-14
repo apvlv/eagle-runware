@@ -6,6 +6,7 @@ import {
   type GenerationResult,
 } from '../lib/runware';
 import { validateRequest, type ModelId } from '../lib/models';
+import { mapRunwareError, type MappedError } from '../lib/errors';
 
 export type JobStatus = 'running' | 'partial' | 'done' | 'error' | 'cancelled';
 
@@ -16,6 +17,7 @@ export interface Job {
   status: JobStatus;
   results: GenerationResult[];
   error?: string;
+  errorDetails?: MappedError;
   costUSD?: number;
   startedAt: number;
   finishedAt?: number;
@@ -176,11 +178,12 @@ export function startJob(request: GenerationRequest): StartJobResult {
       });
     } catch (e) {
       if (cancelled) return;
-      const msg = e instanceof Error ? e.message : String(e);
+      const mapped = mapRunwareError(e);
       patchJob(id, (j) => ({
         ...j,
         status: 'error',
-        error: msg,
+        error: mapped.message,
+        errorDetails: mapped,
         finishedAt: Date.now(),
       }));
     } finally {
@@ -194,6 +197,12 @@ export function startJob(request: GenerationRequest): StartJobResult {
 export function cancelJob(jobId: string): void {
   const c = cancelers.get(jobId);
   c?.();
+}
+
+export function retryJob(jobId: string): StartJobResult | null {
+  const job = state.jobs.find((j) => j.id === jobId);
+  if (!job) return null;
+  return startJob(job.request);
 }
 
 export function clearJobs(): void {

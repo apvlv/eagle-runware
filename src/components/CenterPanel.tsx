@@ -1,8 +1,10 @@
 import { ReferenceStrip } from './ReferenceStrip';
 import { GenerateButton } from './GenerateButton';
 import { StatusBar, type StatusKind } from './StatusBar';
+import { ErrorBanner } from './ErrorBanner';
 import type { ModelId } from '../lib/models';
 import type { Reference } from '../lib/promptForm';
+import type { MappedError } from '../lib/errors';
 
 interface CenterPanelProps {
   onGenerate: () => void;
@@ -17,6 +19,10 @@ interface CenterPanelProps {
   model: ModelId;
   references: Reference[];
   setReferences: (next: Reference[] | ((prev: Reference[]) => Reference[])) => void;
+  error?: MappedError | null;
+  onRetry?: () => void;
+  onDismissError?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function CenterPanel({
@@ -32,6 +38,10 @@ export function CenterPanel({
   model,
   references,
   setReferences,
+  error,
+  onRetry,
+  onDismissError,
+  onOpenSettings,
 }: CenterPanelProps) {
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-bg">
@@ -42,6 +52,16 @@ export function CenterPanel({
         setReferences={setReferences}
       />
       <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-6 py-6">
+        {error && (
+          <div className="w-full max-w-md">
+            <ErrorBanner
+              error={error}
+              onRetry={onRetry}
+              onDismiss={onDismissError}
+              onOpenSettings={onOpenSettings}
+            />
+          </div>
+        )}
         <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-bg-panel/50 px-6 py-10 text-center">
           <svg viewBox="0 0 24 24" width="28" height="28" className="text-fg-subtle" aria-hidden="true">
             <path
