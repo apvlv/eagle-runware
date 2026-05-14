@@ -240,6 +240,9 @@ export default function App() {
           statusHint={statusHint}
           generateTooltip={generateTooltip}
           loading={!ready}
+          model={settings.defaultModel}
+          references={promptForm.references}
+          setReferences={promptForm.setReferences}
         />
         <ResultsGrid loading={!ready} />
       </main>

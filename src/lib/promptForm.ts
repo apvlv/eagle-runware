@@ -11,7 +11,16 @@ import {
   type SafetyTolerance,
 } from './models';
 import { getSettings, setSettings, type OutputFormat } from './settings';
-import type { GenerationRequest } from './runware';
+import type { GenerationRequest, ImageRef } from './runware';
+
+export interface Reference {
+  id: string;
+  kind: 'library' | 'upload';
+  sourceItemId?: string;
+  dataURI: string;
+  name: string;
+  bytes: number;
+}
 
 export interface NbpParams {
   resolution: ResolutionPreset;
@@ -131,6 +140,9 @@ export interface UsePromptFormResult {
   setGpt: <K extends keyof GptParams>(key: K, val: GptParams[K]) => void;
   applyGptPreset: (preset: GptPreset) => void;
 
+  references: Reference[];
+  setReferences: (next: Reference[] | ((prev: Reference[]) => Reference[])) => void;
+
   validationError: string | null;
   buildRequest: () => GenerationRequest;
 }
@@ -153,6 +165,8 @@ export function usePromptForm(model: ModelId): UsePromptFormResult {
   const [gpt, setGptState] = useState<GptParams>(() =>
     pickGpt(initial.lastUsedModelParams?.['gpt-image-2']),
   );
+
+  const [references, setReferences] = useState<Reference[]>([]);
 
   const isFirstNbp = useRef(true);
   useEffect(() => {
@@ -208,6 +222,10 @@ export function usePromptForm(model: ModelId): UsePromptFormResult {
 
   const buildRequest = useCallback((): GenerationRequest => {
     const seedValue = seed ?? undefined;
+    const refImages: ImageRef[] | undefined =
+      references.length > 0
+        ? references.map((r) => ({ kind: 'dataURI', value: r.dataURI }))
+        : undefined;
     if (model === 'nano-banana-pro') {
       const dims = dimsFromPreset('nano-banana-pro', nbp.resolution, nbp.aspect);
       const sys = systemPrompt.trim();
@@ -219,6 +237,7 @@ export function usePromptForm(model: ModelId): UsePromptFormResult {
         width: dims.width,
         height: dims.height,
         outputFormat,
+        referenceImages: refImages,
         providerSettings: {
           temperature: nbp.temperature,
           topP: nbp.topP,
@@ -236,12 +255,13 @@ export function usePromptForm(model: ModelId): UsePromptFormResult {
       width: gpt.width,
       height: gpt.height,
       outputFormat,
+      referenceImages: refImages,
       providerSettings: {
         quality: gpt.quality,
         moderation: gpt.moderation,
       },
     };
-  }, [model, positivePrompt, numberResults, seed, outputFormat, systemPrompt, nbp, gpt]);
+  }, [model, positivePrompt, numberResults, seed, outputFormat, systemPrompt, nbp, gpt, references]);
 
   const validationError = useMemo(() => {
     return validateRequest(model, buildRequest());
@@ -268,6 +288,8 @@ export function usePromptForm(model: ModelId): UsePromptFormResult {
     gpt,
     setGpt,
     applyGptPreset,
+    references,
+    setReferences,
     validationError,
     buildRequest,
   };

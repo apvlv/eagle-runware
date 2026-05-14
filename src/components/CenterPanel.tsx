@@ -1,6 +1,8 @@
 import { ReferenceStrip } from './ReferenceStrip';
 import { GenerateButton } from './GenerateButton';
 import { StatusBar, type StatusKind } from './StatusBar';
+import type { ModelId } from '../lib/models';
+import type { Reference } from '../lib/promptForm';
 
 interface CenterPanelProps {
   onGenerate: () => void;
@@ -11,6 +13,9 @@ interface CenterPanelProps {
   statusHint?: string;
   generateTooltip?: string;
   loading?: boolean;
+  model: ModelId;
+  references: Reference[];
+  setReferences: (next: Reference[] | ((prev: Reference[]) => Reference[])) => void;
 }
 
 export function CenterPanel({
@@ -22,10 +27,18 @@ export function CenterPanel({
   statusHint,
   generateTooltip,
   loading,
+  model,
+  references,
+  setReferences,
 }: CenterPanelProps) {
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-bg">
-      <ReferenceStrip loading={loading} />
+      <ReferenceStrip
+        loading={loading}
+        model={model}
+        references={references}
+        setReferences={setReferences}
+      />
       <div className="flex flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-6 py-6">
         <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-bg-panel/50 px-6 py-10 text-center">
           <svg viewBox="0 0 24 24" width="28" height="28" className="text-fg-subtle" aria-hidden="true">
