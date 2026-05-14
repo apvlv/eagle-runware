@@ -46,7 +46,7 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-const MIN_SCALE = 0.25;
+const MIN_SCALE = 1;
 const MAX_SCALE = 12;
 
 interface Transform {
@@ -192,7 +192,16 @@ export function Lightbox({ item, onClose }: LightboxProps) {
       <div
         ref={containerRef}
         className="flex max-h-full w-full max-w-6xl select-none flex-col items-center gap-3 overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          // Dead space inside the wrapper (beside the image / info bar) closes
+          // the lightbox, matching the backdrop. Clicks on children stay
+          // contained so the image and the info-bar buttons keep working.
+          if (e.target === e.currentTarget) {
+            onClose();
+            return;
+          }
+          e.stopPropagation();
+        }}
         onMouseDown={handleMouseDown}
         onDoubleClick={(e) => {
           const target = e.target as HTMLElement;
