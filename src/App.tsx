@@ -10,6 +10,7 @@ import { initTheme } from './lib/theme';
 import { toast } from './lib/toast';
 import { generate, type GenerationRequest } from './lib/runware';
 import { dimsFromPreset, type ModelId } from './lib/models';
+import { usePromptForm } from './lib/promptForm';
 import {
   getSelectedItems,
   itemToDataURI,
@@ -94,6 +95,7 @@ export default function App() {
   const [settings] = useSettings();
   const hasApiKey = settings.apiKey.trim().length > 0;
   const isDev = import.meta.env.DEV;
+  const promptForm = usePromptForm(settings.defaultModel);
 
   useEffect(() => {
     initTheme();
@@ -203,14 +205,20 @@ export default function App() {
       </>
     );
 
-  const canGenerate = ready && !busy;
+  const validationError = promptForm.validationError;
+  const canGenerate = ready && !busy && validationError === null;
+  const generateTooltip = !ready
+    ? 'Waiting for Eagle…'
+    : busy
+      ? undefined
+      : (validationError ?? undefined);
   const statusHint = !ready
     ? 'Waiting for Eagle…'
     : !hasApiKey
       ? 'Set your API key in Settings.'
       : busy
         ? undefined
-        : 'Idle.';
+        : (validationError ?? 'Idle.');
 
   return (
     <div className="flex h-full w-full flex-col bg-bg text-fg">
@@ -222,7 +230,7 @@ export default function App() {
         devActions={devActions}
       />
       <main className="flex min-h-0 flex-1">
-        <PromptPanel loading={!ready} />
+        <PromptPanel loading={!ready} model={settings.defaultModel} form={promptForm} />
         <CenterPanel
           onGenerate={handleGenerate}
           canGenerate={canGenerate}
@@ -230,6 +238,7 @@ export default function App() {
           status={status}
           statusMessage={statusMessage}
           statusHint={statusHint}
+          generateTooltip={generateTooltip}
           loading={!ready}
         />
         <ResultsGrid loading={!ready} />

@@ -9,6 +9,7 @@ interface CenterPanelProps {
   status: StatusKind;
   statusMessage?: string;
   statusHint?: string;
+  generateTooltip?: string;
   loading?: boolean;
 }
 
@@ -19,6 +20,7 @@ export function CenterPanel({
   status,
   statusMessage,
   statusHint,
+  generateTooltip,
   loading,
 }: CenterPanelProps) {
   return (
@@ -41,7 +43,12 @@ export function CenterPanel({
           </p>
         </div>
         <div className="w-full max-w-md">
-          <GenerateButton onClick={onGenerate} disabled={!canGenerate} busy={busy} />
+          <GenerateButton
+            onClick={onGenerate}
+            disabled={!canGenerate}
+            busy={busy}
+            tooltip={generateTooltip}
+          />
         </div>
       </div>
       <StatusBar kind={status} message={statusMessage} hint={statusHint} />

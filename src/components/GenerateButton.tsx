@@ -3,14 +3,17 @@ interface GenerateButtonProps {
   disabled?: boolean;
   busy?: boolean;
   label?: string;
+  tooltip?: string;
 }
 
-export function GenerateButton({ onClick, disabled, busy, label = 'Generate' }: GenerateButtonProps) {
+export function GenerateButton({ onClick, disabled, busy, label = 'Generate', tooltip }: GenerateButtonProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled || busy}
+      title={tooltip}
+      aria-label={tooltip ? `${label} (${tooltip})` : label}
       className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-accent text-sm font-semibold text-accent-fg shadow-sm transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
     >
       {busy ? (
