@@ -228,7 +228,7 @@ export function ReferenceStrip({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={
-        'flex flex-none items-center gap-2 border-b border-border bg-bg-panel px-3 py-2 transition-colors ' +
+        'flex flex-none items-center gap-3 border-b border-border bg-bg-panel px-3 py-3 transition-colors ' +
         (dragOver ? 'bg-focus/10 ring-1 ring-inset ring-focus' : '')
       }
     >
@@ -245,12 +245,12 @@ export function ReferenceStrip({
         </span>
       </div>
 
-      <div className="flex flex-1 items-center gap-2 overflow-x-auto">
+      <div className="flex flex-1 items-center gap-3 overflow-x-auto py-1">
         {loading ? (
           <>
-            <Skeleton className="h-14 w-14 flex-none" />
-            <Skeleton className="h-14 w-14 flex-none" />
-            <Skeleton className="h-14 w-14 flex-none" />
+            <Skeleton className="h-24 w-24 flex-none" />
+            <Skeleton className="h-24 w-24 flex-none" />
+            <Skeleton className="h-24 w-24 flex-none" />
           </>
         ) : references.length === 0 ? (
           <p className="truncate text-xs text-fg-subtle">
@@ -341,7 +341,7 @@ function ReferenceTile({ item: r, onRemove }: ReferenceTileProps) {
       <img
         src={r.dataURI}
         alt={r.name}
-        className="h-14 w-14 rounded border border-border object-cover"
+        className="h-24 w-24 rounded border border-border object-cover"
         draggable={false}
       />
       <span

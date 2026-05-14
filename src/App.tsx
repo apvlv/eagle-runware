@@ -4,6 +4,7 @@ import { TopBar } from './components/TopBar';
 import { PromptPanel } from './components/PromptPanel';
 import { ResultsGrid, resultBusyKey } from './components/ResultsGrid';
 import { CenterPanel } from './components/CenterPanel';
+import { Lightbox, type LightboxItem } from './components/Lightbox';
 import { Toaster } from './components/Toaster';
 import { useSettings, setSettings } from './lib/settings';
 import { initTheme } from './lib/theme';
@@ -132,11 +133,21 @@ export default function App() {
   const isDev = import.meta.env.DEV;
   const promptForm = usePromptForm(settings.defaultModel);
   const jobsState = useJobsState();
+  const [lightboxItem, setLightboxItem] = useState<LightboxItem | null>(null);
 
   const currentJob = useMemo<Job | null>(() => {
     if (!jobsState.currentJobId) return null;
     return jobsState.jobs.find((j) => j.id === jobsState.currentJobId) ?? null;
   }, [jobsState]);
+
+  const latestItem = useMemo<LightboxItem | null>(() => {
+    for (let i = jobsState.jobs.length - 1; i >= 0; i--) {
+      const j = jobsState.jobs[i];
+      if (j.results.length === 0) continue;
+      return { job: j, result: j.results[j.results.length - 1] };
+    }
+    return null;
+  }, [jobsState.jobs]);
 
   const busy = !!currentJob && isActiveStatus(currentJob.status);
 
@@ -472,6 +483,8 @@ export default function App() {
           references={promptForm.references}
           setReferences={promptForm.setReferences}
           error={activeError}
+          latestItem={latestItem}
+          onOpenLightbox={setLightboxItem}
           onRetry={handleRetry}
           onDismissError={handleDismissError}
           onOpenSettings={() => setDrawerOpen(true)}
@@ -480,10 +493,14 @@ export default function App() {
           loading={!ready}
           onVariation={handleVariation}
           onUseAsReference={handleUseAsReference}
+          onOpenLightbox={setLightboxItem}
           refBusyKey={refBusyKey}
         />
       </main>
       <Toaster />
+      {lightboxItem && (
+        <Lightbox item={lightboxItem} onClose={() => setLightboxItem(null)} />
+      )}
       <SettingsDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </div>
   );

@@ -5,7 +5,6 @@ import type { GenerationResult } from '../lib/runware';
 import type { Job } from '../state/jobs';
 import { useJobsState } from '../state/jobs';
 import {
-  getSave,
   patchSave,
   recordSave,
   useSavesState,
@@ -17,11 +16,13 @@ import { useSettings } from '../lib/settings';
 import { toast } from '../lib/toast';
 import { StarRating } from './StarRating';
 import { SaveToEagleModal } from './SaveToEagleModal';
+import type { LightboxItem } from './Lightbox';
 
 interface ResultsGridProps {
   loading?: boolean;
   onVariation: (job: Job) => void;
   onUseAsReference: (job: Job, result: GenerationResult) => void;
+  onOpenLightbox: (item: LightboxItem) => void;
   refBusyKey: string | null;
 }
 
@@ -57,12 +58,12 @@ export function ResultsGrid({
   loading = false,
   onVariation,
   onUseAsReference,
+  onOpenLightbox,
   refBusyKey,
 }: ResultsGridProps) {
   const { jobs } = useJobsState();
   const saves = useSavesState();
   const [settings] = useSettings();
-  const [lightbox, setLightbox] = useState<FlatItem | null>(null);
   const [savingAll, setSavingAll] = useState(false);
 
   const items = useMemo<FlatItem[]>(() => {
@@ -76,15 +77,6 @@ export function ResultsGrid({
     }
     return out;
   }, [jobs]);
-
-  useEffect(() => {
-    if (!lightbox) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLightbox(null);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [lightbox]);
 
   const unsavedCount = useMemo(
     () => items.filter((it) => !saves.byKey[resultBusyKey(it.job, it.result)]).length,
@@ -156,7 +148,7 @@ export function ResultsGrid({
   return (
     <aside
       aria-label="Results"
-      className="flex h-full w-80 flex-none flex-col border-l border-border bg-bg-panel"
+      className="flex h-full w-[28rem] flex-none flex-col border-l border-border bg-bg-panel"
     >
       <header className="flex flex-none items-center justify-between gap-2 border-b border-border px-4 py-2.5">
         <div className="flex min-w-0 flex-col">
@@ -200,12 +192,12 @@ export function ResultsGrid({
             <p className="text-xs text-fg-muted">Generated images will appear here in a grid.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             {items.map((item) => (
               <ResultCard
                 key={item.key}
                 item={item}
-                onOpen={() => setLightbox(item)}
+                onOpen={() => onOpenLightbox({ job: item.job, result: item.result })}
                 onVariation={() => onVariation(item.job)}
                 onUseAsReference={() => onUseAsReference(item.job, item.result)}
                 refBusy={refBusyKey === resultBusyKey(item.job, item.result)}
@@ -214,7 +206,6 @@ export function ResultsGrid({
           </div>
         )}
       </div>
-      {lightbox && <Lightbox item={lightbox} onClose={() => setLightbox(null)} />}
     </aside>
   );
 }
@@ -419,60 +410,3 @@ function ResultCard({ item, onOpen, onVariation, onUseAsReference, refBusy }: Re
   );
 }
 
-interface LightboxProps {
-  item: FlatItem;
-  onClose: () => void;
-}
-
-function Lightbox({ item, onClose }: LightboxProps) {
-  const { job, result } = item;
-  const src = imgSrc(result);
-  const cost = formatCost(result.cost);
-  const modelLabel = MODEL_LABELS[job.model];
-  const saved = getSave(resultBusyKey(job, result));
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg-overlay/80 p-6"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Result preview"
-      data-testid="result-lightbox"
-      onClick={onClose}
-    >
-      <div
-        className="flex max-h-full w-full max-w-4xl flex-col items-center gap-3"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {src ? (
-          <img
-            src={src}
-            alt={`Result seed ${result.seed ?? ''}`}
-            className="max-h-[75vh] w-auto max-w-full rounded-md border border-border bg-bg shadow-2xl"
-            draggable={false}
-          />
-        ) : (
-          <div className="flex h-64 w-64 items-center justify-center rounded-md border border-border bg-bg-panel text-sm text-fg-muted">
-            No image
-          </div>
-        )}
-        <div className="flex flex-wrap items-center gap-3 rounded bg-bg-panel px-3 py-2 font-mono text-[11px] text-fg shadow-md">
-          <span className="font-sans font-semibold">{modelLabel}</span>
-          {result.seed != null && <span>seed {result.seed}</span>}
-          {cost && <span>{cost}</span>}
-          {saved && (
-            <span className="font-sans text-success">Saved · {saved.name}</span>
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-2 rounded border border-border bg-bg px-2 py-0.5 font-sans text-[11px] text-fg-muted hover:bg-bg-elevated hover:text-fg"
-            aria-label="Close preview"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
