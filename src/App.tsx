@@ -27,7 +27,7 @@ import {
   useJobsState,
   type Job,
 } from './state/jobs';
-import type { StatusKind } from './components/StatusBar';
+import type { StatusKind, StatusProgress } from './components/StatusBar';
 import { mapRunwareError, type MappedError } from './lib/errors';
 
 const SMOKE_PROMPT =
@@ -402,10 +402,11 @@ export default function App() {
   // Suppress unused-tick warning — tick exists to trigger re-renders for elapsed time.
   void tick;
 
-  const { status, statusMessage, statusHint } = useMemo<{
+  const { status, statusMessage, statusHint, statusProgress } = useMemo<{
     status: StatusKind;
     statusMessage?: string;
     statusHint?: string;
+    statusProgress?: StatusProgress | null;
   }>(() => {
     if (!ready) {
       return { status: 'idle', statusMessage: 'Waiting for Eagle…' };
@@ -422,6 +423,7 @@ export default function App() {
           status: 'busy',
           statusMessage: `Generating ${Math.min(got, expected)}/${expected}…`,
           statusHint: hintParts.join(' · '),
+          statusProgress: { got: Math.min(got, expected), expected },
         };
       }
       if (currentJob.status === 'done') {
@@ -477,6 +479,7 @@ export default function App() {
           status={status}
           statusMessage={statusMessage}
           statusHint={statusHint}
+          statusProgress={statusProgress}
           generateTooltip={generateTooltip}
           loading={!ready}
           model={settings.defaultModel}

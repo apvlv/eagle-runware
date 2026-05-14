@@ -3,7 +3,7 @@ import { Skeleton } from './Skeleton';
 import { MODEL_LABELS } from '../lib/models';
 import type { GenerationResult } from '../lib/runware';
 import type { Job } from '../state/jobs';
-import { useJobsState } from '../state/jobs';
+import { isActiveStatus, useJobsState } from '../state/jobs';
 import {
   patchSave,
   recordSave,
@@ -76,6 +76,12 @@ export function ResultsGrid({
       }
     }
     return out;
+  }, [jobs]);
+
+  const pendingCount = useMemo(() => {
+    const active = jobs.find((j) => isActiveStatus(j.status));
+    if (!active) return 0;
+    return Math.max(0, active.expected - active.results.length);
   }, [jobs]);
 
   const unsavedCount = useMemo(
@@ -180,7 +186,7 @@ export function ResultsGrid({
             <Skeleton className="aspect-square w-full" />
             <Skeleton className="aspect-square w-full" />
           </div>
-        ) : items.length === 0 ? (
+        ) : items.length === 0 && pendingCount === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 rounded border border-dashed border-border px-4 py-10 text-center">
             <svg viewBox="0 0 24 24" width="22" height="22" className="text-fg-subtle" aria-hidden="true">
               <rect x="3" y="3" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
@@ -193,6 +199,19 @@ export function ResultsGrid({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: pendingCount }).map((_, i) => (
+              <div
+                key={`pending-${i}`}
+                className="relative aspect-square w-full overflow-hidden rounded-md border border-dashed border-border"
+                aria-label="Result pending"
+                data-testid="result-pending"
+              >
+                <Skeleton className="h-full w-full rounded-none" />
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[10px] uppercase tracking-wide text-fg-subtle">
+                  Pending…
+                </span>
+              </div>
+            ))}
             {items.map((item) => (
               <ResultCard
                 key={item.key}

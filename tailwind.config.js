@@ -40,10 +40,15 @@ export default {
           from: { transform: 'translateY(12px)', opacity: '0' },
           to: { transform: 'translateY(0)', opacity: '1' },
         },
+        'progress-indeterminate': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(300%)' },
+        },
       },
       animation: {
         'skeleton-pulse': 'skeleton-pulse 1.6s ease-in-out infinite',
         'toast-in': 'toast-in 180ms ease-out',
+        'progress-indeterminate': 'progress-indeterminate 1.6s ease-in-out infinite',
       },
     },
   },

@@ -1,6 +1,6 @@
 import { ReferenceStrip } from './ReferenceStrip';
 import { GenerateButton } from './GenerateButton';
-import { StatusBar, type StatusKind } from './StatusBar';
+import { StatusBar, type StatusKind, type StatusProgress } from './StatusBar';
 import { ErrorBanner } from './ErrorBanner';
 import { lightboxImgSrc, type LightboxItem } from './Lightbox';
 import { MODEL_LABELS, type ModelId } from '../lib/models';
@@ -15,6 +15,7 @@ interface CenterPanelProps {
   status: StatusKind;
   statusMessage?: string;
   statusHint?: string;
+  statusProgress?: StatusProgress | null;
   generateTooltip?: string;
   loading?: boolean;
   model: ModelId;
@@ -43,6 +44,7 @@ export function CenterPanel({
   status,
   statusMessage,
   statusHint,
+  statusProgress,
   generateTooltip,
   loading,
   model,
@@ -142,6 +144,7 @@ export function CenterPanel({
         kind={status}
         message={statusMessage}
         hint={statusHint}
+        progress={statusProgress}
         onCancel={busy ? onCancel : undefined}
       />
     </section>

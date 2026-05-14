@@ -1,10 +1,16 @@
 export type StatusKind = 'idle' | 'busy' | 'success' | 'error';
 
+export interface StatusProgress {
+  got: number;
+  expected: number;
+}
+
 interface StatusBarProps {
   kind?: StatusKind;
   message?: string;
   hint?: string;
   onCancel?: () => void;
+  progress?: StatusProgress | null;
 }
 
 const KIND_DOT: Record<StatusKind, string> = {
@@ -21,13 +27,38 @@ const KIND_LABEL: Record<StatusKind, string> = {
   error: 'Error',
 };
 
-export function StatusBar({ kind = 'idle', message, hint, onCancel }: StatusBarProps) {
+export function StatusBar({ kind = 'idle', message, hint, onCancel, progress }: StatusBarProps) {
+  const showBar = kind === 'busy' && progress && progress.expected > 0;
+  const pct = showBar
+    ? Math.min(100, Math.max(0, (progress!.got / progress!.expected) * 100))
+    : 0;
+  const indeterminate = showBar && progress!.got === 0;
+
   return (
     <footer
       role="status"
       aria-live="polite"
-      className="flex flex-none items-center justify-between gap-3 border-t border-border bg-bg-panel px-3 py-1.5 text-xs"
+      className="relative flex flex-none items-center justify-between gap-3 border-t border-border bg-bg-panel px-3 py-1.5 text-xs"
     >
+      {showBar && (
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-bg-elevated"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={progress!.expected}
+          aria-valuenow={indeterminate ? undefined : progress!.got}
+          aria-label={`Generated ${progress!.got} of ${progress!.expected}`}
+        >
+          {indeterminate ? (
+            <div className="h-full w-1/3 -translate-x-full animate-progress-indeterminate bg-focus" />
+          ) : (
+            <div
+              className="h-full bg-focus transition-[width] duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          )}
+        </div>
+      )}
       <div className="flex min-w-0 items-center gap-2">
         {kind === 'busy' ? (
           <svg
