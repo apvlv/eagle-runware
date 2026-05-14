@@ -6,6 +6,7 @@ import type { Reference } from '../lib/promptForm';
 
 interface CenterPanelProps {
   onGenerate: () => void;
+  onCancel?: () => void;
   canGenerate: boolean;
   busy: boolean;
   status: StatusKind;
@@ -20,6 +21,7 @@ interface CenterPanelProps {
 
 export function CenterPanel({
   onGenerate,
+  onCancel,
   canGenerate,
   busy,
   status,
@@ -55,16 +57,32 @@ export function CenterPanel({
             Compose a prompt on the left, then press <kbd className="rounded border border-border bg-bg px-1 py-0.5 font-mono text-[10px]">⌘ ⏎</kbd> or use the button below to generate.
           </p>
         </div>
-        <div className="w-full max-w-md">
+        <div className="flex w-full max-w-md items-center gap-2">
           <GenerateButton
             onClick={onGenerate}
             disabled={!canGenerate}
             busy={busy}
             tooltip={generateTooltip}
           />
+          {busy && onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              data-testid="cancel-job-inline"
+              className="inline-flex h-11 flex-none items-center justify-center rounded-md border border-border bg-bg px-3 text-sm font-medium text-fg hover:bg-bg-elevated"
+              aria-label="Cancel generation"
+            >
+              Cancel
+            </button>
+          )}
         </div>
       </div>
-      <StatusBar kind={status} message={statusMessage} hint={statusHint} />
+      <StatusBar
+        kind={status}
+        message={statusMessage}
+        hint={statusHint}
+        onCancel={busy ? onCancel : undefined}
+      />
     </section>
   );
 }

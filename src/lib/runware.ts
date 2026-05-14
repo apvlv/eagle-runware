@@ -169,6 +169,18 @@ export function getClient(): RunwareClientInstance {
   return _client;
 }
 
+export async function disconnectClient(): Promise<void> {
+  const client = _client;
+  _client = null;
+  _clientApiKey = null;
+  if (!client) return;
+  try {
+    await client.disconnect?.();
+  } catch (err) {
+    console.warn('[Runware] disconnect failed:', err);
+  }
+}
+
 function buildSdkPayload(req: GenerationRequest): Record<string, unknown> {
   const spec = MODELS[req.model];
   const payload: Record<string, unknown> = {

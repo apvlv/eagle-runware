@@ -1,22 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { TopBar } from './components/TopBar';
 import { PromptPanel } from './components/PromptPanel';
-import { ResultsGrid } from './components/ResultsGrid';
+import { ResultsGrid, resultBusyKey } from './components/ResultsGrid';
 import { CenterPanel } from './components/CenterPanel';
 import { Toaster } from './components/Toaster';
 import { useSettings, setSettings } from './lib/settings';
 import { initTheme } from './lib/theme';
 import { toast } from './lib/toast';
-import { generate, type GenerationRequest } from './lib/runware';
-import { dimsFromPreset, type ModelId } from './lib/models';
-import { usePromptForm } from './lib/promptForm';
+import { generate, type GenerationRequest, type GenerationResult } from './lib/runware';
+import { dimsFromPreset, MODEL_LABELS, type ModelId } from './lib/models';
+import { usePromptForm, type Reference } from './lib/promptForm';
 import {
   getSelectedItems,
   itemToDataURI,
   saveGeneratedToLibrary,
   setItemStar,
+  urlToDataURI,
 } from './lib/eagle';
+import {
+  cancelJob,
+  isActiveStatus,
+  startJob,
+  useJobsState,
+  type Job,
+} from './state/jobs';
 import type { StatusKind } from './components/StatusBar';
 
 const SMOKE_PROMPT =
@@ -84,18 +92,48 @@ async function runEagleSmoke(): Promise<void> {
   }
 }
 
+function formatElapsed(ms: number): string {
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  const m = Math.floor(s / 60);
+  const rem = Math.round(s - m * 60);
+  return `${m}m ${rem}s`;
+}
+
+function formatCost(cost?: number): string | null {
+  if (typeof cost !== 'number' || !Number.isFinite(cost)) return null;
+  if (cost === 0) return '$0.00';
+  if (cost < 0.01) return `$${cost.toFixed(4)}`;
+  return `$${cost.toFixed(3)}`;
+}
+
+function newRandomSeed(): number {
+  return Math.floor(Math.random() * 2 ** 31);
+}
+
+function refIdForResult(r: GenerationResult): string {
+  return `gen-${r.imageUUID ?? r.imageURL ?? r.taskUUID ?? Math.random().toString(36).slice(2, 10)}`;
+}
+
 export default function App() {
   const [ready, setReady] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [smokeRunning, setSmokeRunning] = useState(false);
   const [eagleSmokeRunning, setEagleSmokeRunning] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<StatusKind>('idle');
-  const [statusMessage, setStatusMessage] = useState<string | undefined>(undefined);
+  const [refBusyKey, setRefBusyKey] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
   const [settings] = useSettings();
   const hasApiKey = settings.apiKey.trim().length > 0;
   const isDev = import.meta.env.DEV;
   const promptForm = usePromptForm(settings.defaultModel);
+  const jobsState = useJobsState();
+
+  const currentJob = useMemo<Job | null>(() => {
+    if (!jobsState.currentJobId) return null;
+    return jobsState.jobs.find((j) => j.id === jobsState.currentJobId) ?? null;
+  }, [jobsState]);
+
+  const busy = !!currentJob && isActiveStatus(currentJob.status);
 
   useEffect(() => {
     initTheme();
@@ -117,26 +155,36 @@ export default function App() {
     });
   }, []);
 
+  // While a job is active, re-render every second so the elapsed time updates.
+  useEffect(() => {
+    if (!busy) return;
+    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [busy]);
+
   const handleGenerate = useCallback(() => {
     if (!hasApiKey) {
-      toast.warn('API key required', { description: 'Set your Runware API key in Settings to generate.' });
+      toast.warn('API key required', {
+        description: 'Set your Runware API key in Settings to generate.',
+      });
       setDrawerOpen(true);
       return;
     }
     if (busy) return;
-    // Generation pipeline is wired up in a later task. For now we surface the
-    // shortcut working and reflect a transient busy state so the layout is
-    // exercised end-to-end.
-    setBusy(true);
-    setStatus('busy');
-    setStatusMessage('Generation pipeline not yet wired.');
-    toast.info('Generation will be wired in the next task.');
-    window.setTimeout(() => {
-      setBusy(false);
-      setStatus('idle');
-      setStatusMessage(undefined);
-    }, 1200);
-  }, [hasApiKey, busy]);
+    try {
+      const request = promptForm.buildRequest();
+      startJob(request);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error('Cannot generate', { description: msg });
+    }
+  }, [hasApiKey, busy, promptForm]);
+
+  const handleCancel = useCallback(() => {
+    if (currentJob && isActiveStatus(currentJob.status)) {
+      cancelJob(currentJob.id);
+    }
+  }, [currentJob]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -177,6 +225,77 @@ export default function App() {
     }
   };
 
+  const handleVariation = useCallback(
+    (job: Job) => {
+      if (busy) {
+        toast.warn('Wait for current generation to finish.');
+        return;
+      }
+      try {
+        const next: GenerationRequest = { ...job.request, seed: newRandomSeed() };
+        startJob(next);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error('Cannot generate variation', { description: msg });
+      }
+    },
+    [busy],
+  );
+
+  const handleUseAsReference = useCallback(
+    async (job: Job, result: GenerationResult) => {
+      const id = refIdForResult(result);
+      if (promptForm.references.some((r) => r.id === id)) {
+        toast.info('Already in references.');
+        return;
+      }
+      const url = result.imageURL;
+      const inlineDataURI =
+        result.imageDataURI ??
+        (result.imageBase64Data ? `data:image/png;base64,${result.imageBase64Data}` : undefined);
+
+      const key = resultBusyKey(job, result);
+      setRefBusyKey(key);
+      try {
+        let dataURI: string;
+        let bytes = 0;
+        if (inlineDataURI) {
+          dataURI = inlineDataURI;
+          const comma = dataURI.indexOf(',');
+          if (comma >= 0) {
+            const base64Length = dataURI.length - comma - 1;
+            bytes = Math.floor((base64Length * 3) / 4);
+          }
+        } else if (url) {
+          const fetched = await urlToDataURI(url);
+          dataURI = fetched.dataURI;
+          bytes = fetched.bytes;
+        } else {
+          throw new Error('No image data available.');
+        }
+        const ref: Reference = {
+          id,
+          kind: 'library',
+          sourceItemId: id,
+          dataURI,
+          name: `Generated ${MODEL_LABELS[job.model]}`,
+          bytes,
+        };
+        promptForm.setReferences((prev) => {
+          if (prev.some((r) => r.id === id)) return prev;
+          return [...prev, ref];
+        });
+        toast.success('Added to references.');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error('Could not use as reference', { description: msg });
+      } finally {
+        setRefBusyKey(null);
+      }
+    },
+    [promptForm],
+  );
+
   const devActions =
     isDev && (
       <>
@@ -212,13 +331,58 @@ export default function App() {
     : busy
       ? undefined
       : (validationError ?? undefined);
-  const statusHint = !ready
-    ? 'Waiting for Eagle…'
-    : !hasApiKey
-      ? 'Set your API key in Settings.'
-      : busy
-        ? undefined
-        : (validationError ?? 'Idle.');
+
+  // Suppress unused-tick warning — tick exists to trigger re-renders for elapsed time.
+  void tick;
+
+  const { status, statusMessage, statusHint } = useMemo<{
+    status: StatusKind;
+    statusMessage?: string;
+    statusHint?: string;
+  }>(() => {
+    if (!ready) {
+      return { status: 'idle', statusMessage: 'Waiting for Eagle…' };
+    }
+    if (currentJob) {
+      const got = currentJob.results.length;
+      const expected = currentJob.expected;
+      if (isActiveStatus(currentJob.status)) {
+        const elapsed = formatElapsed(Date.now() - currentJob.startedAt);
+        return {
+          status: 'busy',
+          statusMessage: `Generating ${Math.min(got, expected)}/${expected}…`,
+          statusHint: `${elapsed} · ${MODEL_LABELS[currentJob.model]}`,
+        };
+      }
+      if (currentJob.status === 'done') {
+        const elapsed = currentJob.finishedAt
+          ? formatElapsed(currentJob.finishedAt - currentJob.startedAt)
+          : '—';
+        const cost = formatCost(currentJob.costUSD);
+        return {
+          status: 'success',
+          statusMessage: `Done · ${elapsed}${cost ? ` · ${cost}` : ''}`,
+          statusHint: `${got} ${got === 1 ? 'image' : 'images'} · ${MODEL_LABELS[currentJob.model]}`,
+        };
+      }
+      if (currentJob.status === 'error') {
+        return {
+          status: 'error',
+          statusMessage: currentJob.error ?? 'Generation failed.',
+        };
+      }
+      if (currentJob.status === 'cancelled') {
+        return {
+          status: 'idle',
+          statusMessage: `Cancelled · ${got}/${expected} delivered`,
+        };
+      }
+    }
+    if (!hasApiKey) {
+      return { status: 'idle', statusMessage: 'Set your API key in Settings.' };
+    }
+    return { status: 'idle', statusMessage: undefined, statusHint: validationError ?? 'Idle.' };
+  }, [ready, currentJob, hasApiKey, validationError]);
 
   return (
     <div className="flex h-full w-full flex-col bg-bg text-fg">
@@ -233,6 +397,7 @@ export default function App() {
         <PromptPanel loading={!ready} model={settings.defaultModel} form={promptForm} />
         <CenterPanel
           onGenerate={handleGenerate}
+          onCancel={handleCancel}
           canGenerate={canGenerate}
           busy={busy}
           status={status}
@@ -244,7 +409,12 @@ export default function App() {
           references={promptForm.references}
           setReferences={promptForm.setReferences}
         />
-        <ResultsGrid loading={!ready} />
+        <ResultsGrid
+          loading={!ready}
+          onVariation={handleVariation}
+          onUseAsReference={handleUseAsReference}
+          refBusyKey={refBusyKey}
+        />
       </main>
       <Toaster />
       <SettingsDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />

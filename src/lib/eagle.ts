@@ -150,6 +150,17 @@ export function fileToDataURI(file: File): Promise<string> {
   });
 }
 
+export async function urlToDataURI(url: string): Promise<{ dataURI: string; bytes: number }> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Fetch failed (${res.status} ${res.statusText}).`);
+  }
+  const blob = await res.blob();
+  const file = new File([blob], 'reference', { type: blob.type || 'image/png' });
+  const dataURI = await fileToDataURI(file);
+  return { dataURI, bytes: blob.size };
+}
+
 export async function saveGeneratedToLibrary(
   generated: SavableGenerated,
   opts: SaveGeneratedOptions = {},
