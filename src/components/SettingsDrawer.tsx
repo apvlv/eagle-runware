@@ -168,17 +168,17 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true" aria-label="Settings">
       <button
         type="button"
-        className="absolute inset-0 bg-black/60"
+        className="absolute inset-0 bg-bg-overlay/60"
         aria-label="Close settings"
         onClick={onClose}
       />
-      <aside className="relative z-10 flex h-full w-full max-w-md flex-col bg-bg-panel text-zinc-100 shadow-2xl">
-        <header className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+      <aside className="relative z-10 flex h-full w-full max-w-md flex-col bg-bg-panel text-fg shadow-2xl">
+        <header className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-base font-semibold">Settings</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+            className="rounded p-1 text-fg-muted hover:bg-bg-elevated hover:text-fg"
             aria-label="Close"
           >
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
@@ -196,7 +196,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
         <div className="flex-1 overflow-y-auto px-5 py-4">
           <div className="space-y-6">
             <section className="space-y-2">
-              <label htmlFor="rw-api-key" className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <label htmlFor="rw-api-key" className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
                 Runware API key
               </label>
               <div className="flex gap-2">
@@ -213,12 +213,12 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                       setTestResult(null);
                     }}
                     placeholder="rw-…"
-                    className="block w-full rounded border border-zinc-700 bg-bg px-3 py-2 pr-20 font-mono text-sm placeholder:text-zinc-600 focus:border-zinc-500 focus:outline-none"
+                    className="block w-full rounded border border-border bg-bg px-3 py-2 pr-20 font-mono text-sm text-fg placeholder:text-fg-subtle focus:border-focus focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey((v) => !v)}
-                    className="absolute inset-y-0 right-1 my-1 rounded px-2 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                    className="absolute inset-y-0 right-1 my-1 rounded px-2 text-xs text-fg-muted hover:bg-bg-elevated hover:text-fg"
                     aria-label={showKey ? 'Hide API key' : 'Show API key'}
                   >
                     {showKey ? 'Hide' : 'Show'}
@@ -228,12 +228,12 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   type="button"
                   onClick={handleClearKey}
                   disabled={!draft.apiKey}
-                  className="rounded border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded border border-border px-3 py-2 text-sm text-fg hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Clear
                 </button>
               </div>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-fg-subtle">
                 API key is stored locally in this plugin window and sent directly to Runware. It never leaves your
                 machine except to call the Runware API.
               </p>
@@ -242,14 +242,14 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   type="button"
                   onClick={handleTest}
                   disabled={testing || !draft.apiKey.trim()}
-                  className="rounded bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-900 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {testing ? 'Testing…' : 'Test connection'}
                 </button>
                 {testResult && (
                   <span
                     role="status"
-                    className={`text-xs ${testResult.ok ? 'text-emerald-400' : 'text-rose-400'}`}
+                    className={`text-xs ${testResult.ok ? 'text-success' : 'text-danger'}`}
                   >
                     {testResult.ok ? '✓ ' : '✗ '}
                     {testResult.message}
@@ -259,14 +259,14 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
             </section>
 
             <section className="space-y-2">
-              <label htmlFor="rw-default-model" className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <label htmlFor="rw-default-model" className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
                 Default model
               </label>
               <select
                 id="rw-default-model"
                 value={draft.defaultModel}
                 onChange={(e) => setDraft((d) => ({ ...d, defaultModel: e.target.value as DefaultModel }))}
-                className="block w-full rounded border border-zinc-700 bg-bg px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
+                className="block w-full rounded border border-border bg-bg px-3 py-2 text-sm text-fg focus:border-focus focus:outline-none"
               >
                 {DEFAULT_MODELS.map((m) => (
                   <option key={m} value={m}>
@@ -277,14 +277,14 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
             </section>
 
             <section className="space-y-2">
-              <label htmlFor="rw-output-format" className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <label htmlFor="rw-output-format" className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
                 Default output format
               </label>
               <select
                 id="rw-output-format"
                 value={draft.outputFormat}
                 onChange={(e) => setDraft((d) => ({ ...d, outputFormat: e.target.value as OutputFormat }))}
-                className="block w-full rounded border border-zinc-700 bg-bg px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
+                className="block w-full rounded border border-border bg-bg px-3 py-2 text-sm text-fg focus:border-focus focus:outline-none"
               >
                 {OUTPUT_FORMATS.map((f) => (
                   <option key={f} value={f}>
@@ -295,7 +295,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
             </section>
 
             <section className="space-y-2">
-              <label htmlFor="rw-num-results" className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <label htmlFor="rw-num-results" className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
                 Default number of results
               </label>
               <input
@@ -312,25 +312,25 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                     numberResults: Number.isFinite(n) ? Math.min(20, Math.max(1, Math.floor(n))) : 1,
                   }));
                 }}
-                className="block w-32 rounded border border-zinc-700 bg-bg px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
+                className="block w-32 rounded border border-border bg-bg px-3 py-2 text-sm text-fg focus:border-focus focus:outline-none"
               />
             </section>
 
             <section className="space-y-2">
-              <label htmlFor="rw-tags" className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <label htmlFor="rw-tags" className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
                 Default tags
               </label>
-              <div className="flex flex-wrap gap-1.5 rounded border border-zinc-700 bg-bg p-2">
+              <div className="flex flex-wrap gap-1.5 rounded border border-border bg-bg p-2">
                 {draft.defaultTags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center gap-1 rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-100"
+                    className="inline-flex items-center gap-1 rounded bg-bg-elevated px-2 py-0.5 text-xs text-fg"
                   >
                     {tag}
                     <button
                       type="button"
                       onClick={() => removeTag(tag)}
-                      className="text-zinc-400 hover:text-zinc-100"
+                      className="text-fg-muted hover:text-fg"
                       aria-label={`Remove tag ${tag}`}
                     >
                       ×
@@ -345,14 +345,14 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   onKeyDown={handleTagKeyDown}
                   onBlur={handleAddTag}
                   placeholder={draft.defaultTags.length === 0 ? 'Add tag and press Enter' : ''}
-                  className="min-w-[8rem] flex-1 bg-transparent px-1 text-sm placeholder:text-zinc-600 focus:outline-none"
+                  className="min-w-[8rem] flex-1 bg-transparent px-1 text-sm text-fg placeholder:text-fg-subtle focus:outline-none"
                 />
               </div>
-              <p className="text-xs text-zinc-500">Applied to every generated image saved to Eagle.</p>
+              <p className="text-xs text-fg-subtle">Applied to every generated image saved to Eagle.</p>
             </section>
 
             <section className="space-y-2">
-              <label htmlFor="rw-folder" className="block text-xs font-medium uppercase tracking-wide text-zinc-400">
+              <label htmlFor="rw-folder" className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
                 Default save folder
               </label>
               <select
@@ -365,7 +365,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   }))
                 }
                 disabled={foldersLoading || folders.length === 0}
-                className="block w-full rounded border border-zinc-700 bg-bg px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none disabled:opacity-50"
+                className="block w-full rounded border border-border bg-bg px-3 py-2 text-sm text-fg focus:border-focus focus:outline-none disabled:opacity-50"
               >
                 <option value="">No default — choose at save time</option>
                 {folders.map((f) => (
@@ -374,20 +374,20 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   </option>
                 ))}
               </select>
-              {foldersLoading && <p className="text-xs text-zinc-500">Loading folders…</p>}
-              {foldersError && <p className="text-xs text-rose-400">{foldersError}</p>}
+              {foldersLoading && <p className="text-xs text-fg-subtle">Loading folders…</p>}
+              {foldersError && <p className="text-xs text-danger">{foldersError}</p>}
               {!foldersLoading && !foldersError && folders.length === 0 && (
-                <p className="text-xs text-zinc-500">No folders found in this Eagle library.</p>
+                <p className="text-xs text-fg-subtle">No folders found in this Eagle library.</p>
               )}
             </section>
           </div>
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t border-zinc-800 px-5 py-4">
+        <footer className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800"
+            className="rounded px-3 py-1.5 text-sm text-fg hover:bg-bg-elevated"
           >
             Cancel
           </button>
@@ -395,7 +395,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
             type="button"
             onClick={handleSave}
             disabled={!dirty}
-            className="rounded bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-900 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             Save
           </button>

@@ -1,6 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SettingsDrawer } from './components/SettingsDrawer';
-import { useSettings } from './lib/settings';
+import { TopBar } from './components/TopBar';
+import { PromptPanel } from './components/PromptPanel';
+import { ResultsGrid } from './components/ResultsGrid';
+import { CenterPanel } from './components/CenterPanel';
+import { Toaster } from './components/Toaster';
+import { useSettings, setSettings } from './lib/settings';
+import { initTheme } from './lib/theme';
+import { toast } from './lib/toast';
 import { generate, type GenerationRequest } from './lib/runware';
 import { dimsFromPreset, type ModelId } from './lib/models';
 import {
@@ -9,6 +16,7 @@ import {
   saveGeneratedToLibrary,
   setItemStar,
 } from './lib/eagle';
+import type { StatusKind } from './components/StatusBar';
 
 const SMOKE_PROMPT =
   'A wide cinematic photograph of a single glass orb resting on weathered driftwood at sunrise, ' +
@@ -17,10 +25,7 @@ const SMOKE_PROMPT =
   'grain, gentle vignetting, calm minimalist composition, no people, no text.';
 
 async function runSmoke(model: ModelId): Promise<void> {
-  const dims =
-    model === 'nano-banana-pro'
-      ? dimsFromPreset(model, '1K', '1:1')
-      : dimsFromPreset(model, '1K', '1:1');
+  const dims = dimsFromPreset(model, '1K', '1:1');
   const req: GenerationRequest = {
     model,
     positivePrompt: SMOKE_PROMPT,
@@ -83,9 +88,73 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [smokeRunning, setSmokeRunning] = useState(false);
   const [eagleSmokeRunning, setEagleSmokeRunning] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<StatusKind>('idle');
+  const [statusMessage, setStatusMessage] = useState<string | undefined>(undefined);
   const [settings] = useSettings();
   const hasApiKey = settings.apiKey.trim().length > 0;
   const isDev = import.meta.env.DEV;
+
+  useEffect(() => {
+    initTheme();
+  }, []);
+
+  useEffect(() => {
+    if (typeof eagle === 'undefined') {
+      console.warn('[Runware] Eagle API not available — running outside Eagle.');
+      setReady(true);
+      return;
+    }
+
+    eagle.onPluginCreate((plugin) => {
+      const stamp = new Date().toISOString();
+      const msg = `[Runware] Plugin created at ${stamp}`;
+      console.log(msg, plugin);
+      eagle?.log?.info?.(msg);
+      setReady(true);
+    });
+  }, []);
+
+  const handleGenerate = useCallback(() => {
+    if (!hasApiKey) {
+      toast.warn('API key required', { description: 'Set your Runware API key in Settings to generate.' });
+      setDrawerOpen(true);
+      return;
+    }
+    if (busy) return;
+    // Generation pipeline is wired up in a later task. For now we surface the
+    // shortcut working and reflect a transient busy state so the layout is
+    // exercised end-to-end.
+    setBusy(true);
+    setStatus('busy');
+    setStatusMessage('Generation pipeline not yet wired.');
+    toast.info('Generation will be wired in the next task.');
+    window.setTimeout(() => {
+      setBusy(false);
+      setStatus('idle');
+      setStatusMessage(undefined);
+    }, 1200);
+  }, [hasApiKey, busy]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isGenerate = (e.metaKey || e.ctrlKey) && e.key === 'Enter';
+      if (!isGenerate) return;
+      e.preventDefault();
+      handleGenerate();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleGenerate]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDrawerOpen(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [drawerOpen]);
 
   const handleSmoke = async () => {
     setSmokeRunning(true);
@@ -106,85 +175,67 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (typeof eagle === 'undefined') {
-      console.warn('[Runware] Eagle API not available — running outside Eagle.');
-      setReady(true);
-      return;
-    }
-
-    eagle.onPluginCreate((plugin) => {
-      const stamp = new Date().toISOString();
-      const msg = `[Runware] Plugin created at ${stamp}`;
-      console.log(msg, plugin);
-      eagle?.log?.info?.(msg);
-      setReady(true);
-    });
-  }, []);
-
-  return (
-    <main className="flex h-full w-full flex-col bg-bg text-zinc-100">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
-        <h1 className="text-sm font-semibold tracking-tight">Runware AI Generator</h1>
-        <div className="flex items-center gap-2">
-          {isDev && hasApiKey && (
-            <button
-              type="button"
-              onClick={handleSmoke}
-              disabled={smokeRunning}
-              data-testid="dev-smoke"
-              className="rounded border border-amber-700/60 px-3 py-1 text-xs text-amber-300 hover:bg-amber-900/30 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Dev only — runs a 1-image generation against each model and logs the response."
-            >
-              {smokeRunning ? 'Smoke testing…' : '__dev__ smoke'}
-            </button>
-          )}
-          {isDev && (
-            <button
-              type="button"
-              onClick={handleEagleSmoke}
-              disabled={eagleSmokeRunning}
-              data-testid="dev-eagle-smoke"
-              className="rounded border border-emerald-700/60 px-3 py-1 text-xs text-emerald-300 hover:bg-emerald-900/30 disabled:cursor-not-allowed disabled:opacity-50"
-              title="Dev only — reads the currently selected Eagle item, then creates a tagged 4-star item."
-            >
-              {eagleSmokeRunning ? 'Eagle smoke…' : '__dev__ eagle'}
-            </button>
-          )}
+  const devActions =
+    isDev && (
+      <>
+        {hasApiKey && (
           <button
             type="button"
-            onClick={() => setDrawerOpen(true)}
-            className="rounded border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+            onClick={handleSmoke}
+            disabled={smokeRunning}
+            data-testid="dev-smoke"
+            className="rounded border border-warn/50 px-2.5 py-1 text-[11px] text-warn hover:bg-warn/10 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Dev only — runs a 1-image generation against each model and logs the response."
           >
-            Settings
+            {smokeRunning ? 'Smoke…' : '__dev__ smoke'}
           </button>
-        </div>
-      </header>
-
-      <section className="flex flex-1 items-center justify-center px-6">
-        {!ready ? (
-          <p className="text-sm text-zinc-400">Waiting for eagle.onPluginCreate…</p>
-        ) : !hasApiKey ? (
-          <div className="flex max-w-md flex-col items-center gap-3 text-center">
-            <h2 className="text-xl font-semibold">Set your Runware API key</h2>
-            <p className="text-sm text-zinc-400">
-              You need an API key from Runware to generate images. The key is stored locally in this plugin window and
-              sent directly to Runware.
-            </p>
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              className="mt-2 rounded bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-white"
-            >
-              Set your API key
-            </button>
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-400">Plugin initialized — ready to generate.</p>
         )}
-      </section>
+        <button
+          type="button"
+          onClick={handleEagleSmoke}
+          disabled={eagleSmokeRunning}
+          data-testid="dev-eagle-smoke"
+          className="rounded border border-success/50 px-2.5 py-1 text-[11px] text-success hover:bg-success/10 disabled:cursor-not-allowed disabled:opacity-50"
+          title="Dev only — reads the currently selected Eagle item, then creates a tagged 4-star item."
+        >
+          {eagleSmokeRunning ? 'Eagle…' : '__dev__ eagle'}
+        </button>
+      </>
+    );
 
+  const canGenerate = ready && !busy;
+  const statusHint = !ready
+    ? 'Waiting for Eagle…'
+    : !hasApiKey
+      ? 'Set your API key in Settings.'
+      : busy
+        ? undefined
+        : 'Idle.';
+
+  return (
+    <div className="flex h-full w-full flex-col bg-bg text-fg">
+      <TopBar
+        model={settings.defaultModel}
+        onModelChange={(m) => setSettings({ defaultModel: m })}
+        onOpenSettings={() => setDrawerOpen(true)}
+        hasApiKey={hasApiKey}
+        devActions={devActions}
+      />
+      <main className="flex min-h-0 flex-1">
+        <PromptPanel loading={!ready} />
+        <CenterPanel
+          onGenerate={handleGenerate}
+          canGenerate={canGenerate}
+          busy={busy}
+          status={status}
+          statusMessage={statusMessage}
+          statusHint={statusHint}
+          loading={!ready}
+        />
+        <ResultsGrid loading={!ready} />
+      </main>
+      <Toaster />
       <SettingsDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
-    </main>
+    </div>
   );
 }

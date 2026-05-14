@@ -80,6 +80,15 @@ declare global {
   interface EagleEventAPI {
     onLibraryChanged?: (handler: (libraryPath: string) => void) => void;
     offLibraryChanged?: (handler: (libraryPath: string) => void) => void;
+    onThemeChanged?: (handler: (theme: EagleThemeName) => void) => void;
+    offThemeChanged?: (handler: (theme: EagleThemeName) => void) => void;
+  }
+
+  type EagleThemeName = 'LIGHT' | 'LIGHTGRAY' | 'GRAY' | 'DARK' | 'BLUE' | string;
+
+  interface EagleAppAPI {
+    theme?: EagleThemeName;
+    [key: string]: unknown;
   }
 
   interface EagleAPI extends EagleEventAPI {
@@ -89,9 +98,11 @@ declare global {
     onPluginHide?: (handler: () => void) => void;
     onPluginBeforeExit?: (handler: () => void) => void;
     onLibraryChanged?: (handler: (libraryPath: string) => void) => void;
+    onThemeChanged?: (handler: (theme: EagleThemeName) => void) => void;
     log: EagleLog;
     folder?: EagleFolderAPI;
     item?: EagleItemAPI;
+    app?: EagleAppAPI;
   }
 
   // eslint-disable-next-line no-var
