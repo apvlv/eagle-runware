@@ -157,21 +157,25 @@ OUTPUT RULES (critical):
 - Do NOT prefix with labels like "Prompt:" or "Here is…".
 - If the brief above suggests a structured template, you MAY use bold section headings (e.g. **Subject/Scene:**) inline — but only when they help the image model. Otherwise use natural flowing prose.`;
 
-function systemPromptFor(model: ModelId): string {
-  const brief = model === 'nano-banana-pro' ? NBP_BRIEF : GENERIC_BRIEF;
-  return `${brief}${OUTPUT_RULES}`;
-}
-
 type TextMessage = { role: 'user' | 'assistant'; content: string };
 interface TextInferencePayload {
   model: string;
   messages: TextMessage[];
-  systemPrompt?: string;
   temperature?: number;
   topP?: number;
   maxTokens?: number;
   numberResults?: number;
   includeCost?: boolean;
+}
+
+function buildUserMessage(model: ModelId, userPrompt: string): string {
+  const brief = model === 'nano-banana-pro' ? NBP_BRIEF : GENERIC_BRIEF;
+  return `${brief}${OUTPUT_RULES}
+
+---
+
+USER PROMPT TO REWRITE:
+${userPrompt}`;
 }
 interface TextInferenceResult {
   text?: string;
@@ -240,8 +244,7 @@ export async function enhancePrompt(model: ModelId, userPrompt: string): Promise
   try {
     result = await client.textInference({
       model: ENHANCER_MODEL,
-      messages: [{ role: 'user', content: trimmed }],
-      systemPrompt: systemPromptFor(model),
+      messages: [{ role: 'user', content: buildUserMessage(model, trimmed) }],
       temperature: 1,
       topP: 0.95,
       maxTokens: 4096,
