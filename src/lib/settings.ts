@@ -176,3 +176,53 @@ export function useSettings(): readonly [Settings, (u: SettingsUpdate) => void] 
 
   return [state, update] as const;
 }
+
+export const SETTINGS_EXPORT_SCHEMA_VERSION = 1;
+
+export interface SettingsExportEnvelope {
+  schemaVersion: number;
+  exportedAt: string;
+  appVersion?: string;
+  settings: Settings;
+}
+
+export interface ExportSettingsOptions {
+  includeApiKey?: boolean;
+  appVersion?: string;
+}
+
+export function exportSettings(opts: ExportSettingsOptions = {}): string {
+  const current = getSettings();
+  const settings: Settings = opts.includeApiKey === false ? { ...current, apiKey: '' } : current;
+  const envelope: SettingsExportEnvelope = {
+    schemaVersion: SETTINGS_EXPORT_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    ...(opts.appVersion ? { appVersion: opts.appVersion } : {}),
+    settings,
+  };
+  return JSON.stringify(envelope, null, 2);
+}
+
+export interface ImportSettingsResult {
+  settings: Settings;
+  hadApiKey: boolean;
+}
+
+export function parseImportedSettings(input: string): ImportSettingsResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(input);
+  } catch (err) {
+    throw new Error(`Not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Settings file is empty or malformed.');
+  }
+  const obj = parsed as Record<string, unknown>;
+  const raw =
+    obj.settings && typeof obj.settings === 'object'
+      ? (obj.settings as Record<string, unknown>)
+      : obj;
+  const hadApiKey = typeof raw.apiKey === 'string' && raw.apiKey.trim().length > 0;
+  return { settings: sanitize(raw), hadApiKey };
+}

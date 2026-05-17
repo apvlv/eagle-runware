@@ -1,4 +1,5 @@
 import {
+  ChangeEvent as ReactChangeEvent,
   KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useEffect,
@@ -10,12 +11,15 @@ import {
   DEFAULT_MODELS,
   OUTPUT_FORMATS,
   Settings,
+  exportSettings,
+  parseImportedSettings,
   useSettings,
   type DefaultModel,
   type OutputFormat,
   type PromptPreset,
 } from '../lib/settings';
 import { testRunwareConnection, type TestConnectionResult } from '../lib/runware';
+import { toast } from '../lib/toast';
 
 interface SettingsDrawerProps {
   open: boolean;
@@ -57,6 +61,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   const [testResult, setTestResult] = useState<TestConnectionResult | null>(null);
 
   const apiKeyInputRef = useRef<HTMLInputElement | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const [includeApiKeyInExport, setIncludeApiKeyInExport] = useState(false);
 
   // Resync draft whenever the drawer opens (or persisted settings change while closed).
   useEffect(() => {
@@ -185,6 +191,53 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       setTesting(false);
     }
   }, [draft.apiKey]);
+
+  const handleExport = useCallback(() => {
+    try {
+      const json = exportSettings({ includeApiKey: includeApiKeyInExport });
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `runware-settings-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Settings exported.');
+    } catch (err) {
+      toast.error(`Export failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [includeApiKeyInExport]);
+
+  const handleImportClick = useCallback(() => {
+    importInputRef.current?.click();
+  }, []);
+
+  const handleImportFile = useCallback(
+    async (e: ReactChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      // Reset so the same file can be selected again.
+      e.target.value = '';
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const { settings: imported, hadApiKey } = parseImportedSettings(text);
+        // Preserve the current draft's API key if the imported file didn't contain one.
+        setDraft((d) => ({ ...imported, apiKey: hadApiKey ? imported.apiKey : d.apiKey }));
+        setTestResult(null);
+        toast.success(
+          hadApiKey
+            ? 'Settings loaded — click Save to apply.'
+            : 'Settings loaded (no API key in file) — click Save to apply.',
+        );
+      } catch (err) {
+        toast.error(`Import failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+    [],
+  );
 
   const handleClearKey = useCallback(() => {
     setDraft((d) => ({ ...d, apiKey: '' }));
@@ -465,6 +518,49 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   ))}
                 </ul>
               )}
+            </section>
+
+            <section className="space-y-2">
+              <label className="block text-xs font-medium uppercase tracking-wide text-fg-muted">
+                Import / Export
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleExport}
+                  className="rounded border border-border bg-bg px-3 py-1.5 text-sm text-fg hover:bg-bg-elevated"
+                >
+                  Export settings…
+                </button>
+                <button
+                  type="button"
+                  onClick={handleImportClick}
+                  className="rounded border border-border bg-bg px-3 py-1.5 text-sm text-fg hover:bg-bg-elevated"
+                >
+                  Import settings…
+                </button>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={handleImportFile}
+                  className="hidden"
+                  aria-hidden="true"
+                  tabIndex={-1}
+                />
+              </div>
+              <label className="flex items-center gap-2 text-xs text-fg-subtle">
+                <input
+                  type="checkbox"
+                  checked={includeApiKeyInExport}
+                  onChange={(e) => setIncludeApiKeyInExport(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-border accent-accent"
+                />
+                Include API key in export
+              </label>
+              <p className="text-xs text-fg-subtle">
+                Import loads settings into this drawer; click <em>Save</em> to apply them.
+              </p>
             </section>
           </div>
         </div>
