@@ -24,6 +24,22 @@ export function modelAutoTags(model: ModelId): string[] {
   return ['runware', model];
 }
 
+export function inputImageTags(names: readonly string[] | undefined): string[] {
+  if (!names || names.length === 0) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of names) {
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    const tag = `input:${trimmed}`;
+    const k = tag.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(tag);
+  }
+  return out;
+}
+
 function normalizeTag(tag: string): string {
   return tag.trim();
 }

@@ -22,6 +22,7 @@ export interface Job {
   startedAt: number;
   finishedAt?: number;
   expected: number;
+  referenceNames?: string[];
 }
 
 export interface JobsState {
@@ -122,7 +123,10 @@ export interface StartJobResult {
   promise: Promise<void>;
 }
 
-export function startJob(request: GenerationRequest): StartJobResult {
+export function startJob(
+  request: GenerationRequest,
+  referenceNames?: readonly string[],
+): StartJobResult {
   const err = validateRequest(request.model, request);
   if (err) throw new Error(err);
 
@@ -135,6 +139,7 @@ export function startJob(request: GenerationRequest): StartJobResult {
     results: [],
     expected: Math.max(1, request.numberResults ?? 1),
     startedAt: Date.now(),
+    referenceNames: referenceNames && referenceNames.length > 0 ? [...referenceNames] : undefined,
   };
   setState((s) => ({ ...s, jobs: [...s.jobs, job], currentJobId: id }));
 
@@ -202,7 +207,7 @@ export function cancelJob(jobId: string): void {
 export function retryJob(jobId: string): StartJobResult | null {
   const job = state.jobs.find((j) => j.id === jobId);
   if (!job) return null;
-  return startJob(job.request);
+  return startJob(job.request, job.referenceNames);
 }
 
 export function clearJobs(): void {

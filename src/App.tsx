@@ -199,7 +199,10 @@ export default function App() {
     try {
       const request = promptForm.buildRequest();
       setPreflightError(null);
-      startJob(request);
+      startJob(
+        request,
+        promptForm.references.map((r) => r.name),
+      );
     } catch (err) {
       const mapped = mapRunwareError(err);
       // Local validation lands in the validation bucket; surface inline + toast.
@@ -300,7 +303,7 @@ export default function App() {
       }
       try {
         const next: GenerationRequest = { ...job.request, seed: newRandomSeed() };
-        startJob(next);
+        startJob(next, job.referenceNames);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         toast.error('Cannot generate variation', { description: msg });

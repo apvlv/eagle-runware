@@ -11,7 +11,12 @@ import {
   type SavedItem,
 } from '../state/saves';
 import { openItemInEagle, saveGeneratedToLibrary, setItemStar } from '../lib/eagle';
-import { autoNameFor, buildAnnotation, buildInitialTags } from '../lib/saveTemplates';
+import {
+  autoNameFor,
+  buildAnnotation,
+  buildInitialTags,
+  inputImageTags,
+} from '../lib/saveTemplates';
 import { useSettings } from '../lib/settings';
 import { toast } from '../lib/toast';
 import { StarRating } from './StarRating';
@@ -103,7 +108,11 @@ export function ResultsGrid({
     let firstError: string | null = null;
     for (const t of targets) {
       try {
-        const tags = buildInitialTags(t.job.model, settings.defaultTags);
+        const tags = buildInitialTags(
+          t.job.model,
+          settings.defaultTags,
+          inputImageTags(t.job.referenceNames),
+        );
         const name = autoNameFor(t.job, t.result);
         const annotation = buildAnnotation(t.job, t.result);
         const folderId = settings.defaultFolderId ?? null;

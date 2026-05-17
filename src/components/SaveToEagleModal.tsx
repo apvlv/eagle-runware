@@ -10,7 +10,12 @@ import {
   updateItemTags,
   type FlatFolder,
 } from '../lib/eagle';
-import { autoNameFor, buildAnnotation, buildInitialTags } from '../lib/saveTemplates';
+import {
+  autoNameFor,
+  buildAnnotation,
+  buildInitialTags,
+  inputImageTags,
+} from '../lib/saveTemplates';
 import { toast } from '../lib/toast';
 import type { GenerationResult } from '../lib/runware';
 import type { Job } from '../state/jobs';
@@ -83,7 +88,11 @@ export function SaveToEagleModal({
     } else {
       setName(autoNameFor(job, result));
       const shotTag = settings.shotTag?.trim();
-      setTags(buildInitialTags(job.model, settings.defaultTags, shotTag ? [shotTag] : []));
+      const extras = [
+        ...(shotTag ? [shotTag] : []),
+        ...inputImageTags(job.referenceNames),
+      ];
+      setTags(buildInitialTags(job.model, settings.defaultTags, extras));
       setAnnotation(buildAnnotation(job, result));
       setStar(initialStar);
       // Folder default resolved async below.
