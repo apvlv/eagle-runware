@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   MODELS,
   MODEL_LABELS,
@@ -17,7 +17,9 @@ import {
   snapDim,
   type UsePromptFormResult,
 } from '../lib/promptForm';
+import { enhancePrompt } from '../lib/promptEnhancer';
 import { OUTPUT_FORMATS, useSettings, type OutputFormat } from '../lib/settings';
+import { toast } from '../lib/toast';
 import { Skeleton } from './Skeleton';
 
 interface PromptPanelProps {
@@ -65,6 +67,27 @@ export function PromptPanel({ loading = false, model, form }: PromptPanelProps) 
   const positiveRef = useRef<HTMLTextAreaElement | null>(null);
   const negativeRef = useRef<HTMLTextAreaElement | null>(null);
   const systemRef = useRef<HTMLTextAreaElement | null>(null);
+  const [enhancing, setEnhancing] = useState(false);
+
+  const handleEnhance = async () => {
+    if (enhancing) return;
+    const source = form.positivePrompt.trim();
+    if (!source) {
+      toast.warn('Enter a prompt before enhancing.');
+      return;
+    }
+    setEnhancing(true);
+    try {
+      const next = await enhancePrompt(model, source);
+      form.setPositivePrompt(next);
+      toast.success('Prompt enhanced.');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error('Prompt enhancer failed', { description: message });
+    } finally {
+      setEnhancing(false);
+    }
+  };
 
   const selectedPreset = settings.selectedPresetId
     ? settings.promptPresets.find((p) => p.id === settings.selectedPresetId)
@@ -129,16 +152,47 @@ export function PromptPanel({ loading = false, model, form }: PromptPanelProps) 
 
       <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
         <section className="space-y-1.5">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <label
               htmlFor="rw-positive"
               className="text-xs font-medium uppercase tracking-wide text-fg-muted"
             >
               Prompt
             </label>
-            <span aria-live="polite" className={`text-[11px] ${counterClass}`}>
-              {length.toLocaleString()} / {maxChars.toLocaleString()}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleEnhance}
+                disabled={enhancing || form.positivePrompt.trim().length === 0}
+                title="Rewrite the prompt using an LLM tuned for this model"
+                aria-busy={enhancing}
+                className="inline-flex items-center gap-1 rounded border border-border bg-bg px-2 py-0.5 text-[11px] font-medium text-fg hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {enhancing ? (
+                  <svg
+                    viewBox="0 0 16 16"
+                    width="11"
+                    height="11"
+                    aria-hidden="true"
+                    className="animate-spin"
+                  >
+                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" fill="none" opacity="0.25" />
+                    <path d="M14 8a6 6 0 0 0-6-6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
+                    <path
+                      d="M8 1.5l1.4 3.4 3.6.3-2.7 2.4.8 3.5L8 9.4 4.9 11.1l.8-3.5L3 5.2l3.6-.3L8 1.5z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                )}
+                <span>{enhancing ? 'Enhancing…' : 'Enhance'}</span>
+              </button>
+              <span aria-live="polite" className={`text-[11px] ${counterClass}`}>
+                {length.toLocaleString()} / {maxChars.toLocaleString()}
+              </span>
+            </div>
           </div>
           <textarea
             id="rw-positive"
@@ -147,7 +201,8 @@ export function PromptPanel({ loading = false, model, form }: PromptPanelProps) 
             onChange={(e) => form.setPositivePrompt(e.target.value)}
             placeholder="Describe the image you want…"
             rows={4}
-            className="block w-full resize-none rounded border border-border bg-bg px-3 py-2 text-sm leading-relaxed text-fg placeholder:text-fg-subtle focus:border-focus focus:outline-none"
+            disabled={enhancing}
+            className="block w-full resize-none rounded border border-border bg-bg px-3 py-2 text-sm leading-relaxed text-fg placeholder:text-fg-subtle focus:border-focus focus:outline-none disabled:opacity-60"
           />
         </section>
 
