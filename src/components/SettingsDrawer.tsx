@@ -424,7 +424,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 </button>
               </div>
               <p className="text-xs text-fg-subtle">
-                Reusable text appended to your prompt when selected from the prompt panel.
+                Reusable text prepended to your prompt when selected from the prompt panel.
               </p>
               {draft.promptPresets.length === 0 ? (
                 <p className="rounded border border-dashed border-border bg-bg/40 px-3 py-2 text-xs text-fg-subtle">
@@ -457,7 +457,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                       <textarea
                         value={preset.text}
                         onChange={(e) => updatePreset(preset.id, { text: e.target.value })}
-                        placeholder="Text appended to the prompt…"
+                        placeholder="Text prepended to the prompt…"
                         rows={3}
                         className="block w-full resize-y rounded border border-border bg-bg px-2 py-1.5 text-sm text-fg placeholder:text-fg-subtle focus:border-focus focus:outline-none"
                       />

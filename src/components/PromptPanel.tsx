@@ -246,14 +246,14 @@ export function PromptPanel({ loading = false, model, form }: PromptPanelProps) 
           {selectedPreset?.text.trim() && (
             <p
               className="rounded border border-border bg-bg/40 px-2 py-1.5 text-[11px] leading-relaxed text-fg-muted"
-              title="Appended to your prompt when you generate."
+              title="Prepended to your prompt when you generate."
             >
-              <span className="text-fg-subtle">Appended:</span> {selectedPreset.text}
+              <span className="text-fg-subtle">Prepended:</span> {selectedPreset.text}
             </p>
           )}
           {settings.promptPresets.length === 0 && (
             <p className="text-[11px] text-fg-subtle">
-              Define presets in Settings to append reusable text to every prompt.
+              Define presets in Settings to prepend reusable text to every prompt.
             </p>
           )}
         </section>

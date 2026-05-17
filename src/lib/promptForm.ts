@@ -233,7 +233,7 @@ export function usePromptForm(model: ModelId): UsePromptFormResult {
         ? references.map((r) => ({ kind: 'dataURI', value: r.dataURI }))
         : undefined;
     const composedPrompt = presetText
-      ? `${positivePrompt.trim()}\n\n${presetText}`.trim()
+      ? `${presetText}\n\n${positivePrompt.trim()}`.trim()
       : positivePrompt;
     if (model === 'nano-banana-pro') {
       const dims = dimsFromPreset('nano-banana-pro', nbp.resolution, nbp.aspect);
