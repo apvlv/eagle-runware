@@ -186,6 +186,43 @@ function stripWrappers(s: string): string {
   return out.trim();
 }
 
+function extractSdkErrorMessage(err: unknown): string | null {
+  if (!err) return null;
+  if (typeof err === 'string') return err;
+  if (Array.isArray(err)) {
+    for (const entry of err) {
+      const msg = extractSdkErrorMessage(entry);
+      if (msg) return msg;
+    }
+    return null;
+  }
+  if (typeof err === 'object') {
+    const o = err as Record<string, unknown>;
+    if (typeof o.message === 'string' && o.message) return o.message;
+    if (typeof o.errorMessage === 'string' && o.errorMessage) return o.errorMessage;
+    if (o.error) {
+      const nested = extractSdkErrorMessage(o.error);
+      if (nested) return nested;
+    }
+    if (Array.isArray(o.errors)) {
+      const nested = extractSdkErrorMessage(o.errors);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+function toReadableError(err: unknown): Error {
+  if (err instanceof Error) return err;
+  const msg = extractSdkErrorMessage(err);
+  if (msg) return new Error(msg);
+  try {
+    return new Error(JSON.stringify(err));
+  } catch {
+    return new Error(String(err));
+  }
+}
+
 export async function enhancePrompt(model: ModelId, userPrompt: string): Promise<string> {
   const trimmed = userPrompt.trim();
   if (!trimmed) throw new Error('Enter a prompt before enhancing.');
@@ -199,16 +236,22 @@ export async function enhancePrompt(model: ModelId, userPrompt: string): Promise
     throw new Error('Runware SDK is missing textInference — please upgrade @runware/sdk-js.');
   }
 
-  const result = await client.textInference({
-    model: ENHANCER_MODEL,
-    messages: [{ role: 'user', content: trimmed }],
-    systemPrompt: systemPromptFor(model),
-    temperature: 1,
-    topP: 0.95,
-    maxTokens: 4096,
-    numberResults: 1,
-    includeCost: true,
-  });
+  let result: TextInferenceResult | TextInferenceResult[];
+  try {
+    result = await client.textInference({
+      model: ENHANCER_MODEL,
+      messages: [{ role: 'user', content: trimmed }],
+      systemPrompt: systemPromptFor(model),
+      temperature: 1,
+      topP: 0.95,
+      maxTokens: 4096,
+      numberResults: 1,
+      includeCost: true,
+    });
+  } catch (err) {
+    console.warn('[Runware] textInference failed:', err);
+    throw toReadableError(err);
+  }
 
   const first = Array.isArray(result) ? result[0] : result;
   const text = typeof first?.text === 'string' ? first.text : '';
