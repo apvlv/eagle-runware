@@ -78,9 +78,17 @@ export function PromptPanel({ loading = false, model, form }: PromptPanelProps) 
     }
     setEnhancing(true);
     try {
-      const next = await enhancePrompt(model, source);
+      const refs = form.references.map((r) => ({
+        kind: 'dataURI' as const,
+        value: r.dataURI,
+      }));
+      const next = await enhancePrompt(model, source, { references: refs });
       form.setPositivePrompt(next);
-      toast.success('Prompt enhanced.');
+      toast.success(
+        refs.length > 0
+          ? `Prompt enhanced with ${refs.length} reference${refs.length === 1 ? '' : 's'}.`
+          : 'Prompt enhanced.',
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error('Prompt enhancer failed', { description: message });
@@ -164,7 +172,11 @@ export function PromptPanel({ loading = false, model, form }: PromptPanelProps) 
                 type="button"
                 onClick={handleEnhance}
                 disabled={enhancing || form.positivePrompt.trim().length === 0}
-                title="Rewrite the prompt using an LLM tuned for this model"
+                title={
+                  form.references.length > 0
+                    ? `Rewrite the prompt using an LLM tuned for this model (will analyze ${form.references.length} reference${form.references.length === 1 ? '' : 's'})`
+                    : 'Rewrite the prompt using an LLM tuned for this model'
+                }
                 aria-busy={enhancing}
                 className="inline-flex items-center gap-1 rounded border border-border bg-bg px-2 py-0.5 text-[11px] font-medium text-fg hover:bg-bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
               >

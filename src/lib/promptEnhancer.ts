@@ -1,5 +1,5 @@
 import type { ModelId } from './models';
-import { getClient } from './runware';
+import { getClient, uploadReferenceImage, type ImageRef } from './runware';
 
 const ENHANCER_MODEL = 'openai:gpt@5.4';
 
@@ -171,14 +171,57 @@ interface TextInferencePayload {
   includeCost?: boolean;
 }
 
-function buildUserMessage(model: ModelId, userPrompt: string): string {
+function buildUserMessage(
+  model: ModelId,
+  userPrompt: string,
+  referenceCaptions: string[],
+): string {
   const brief = model === 'nano-banana-pro' ? NBP_BRIEF : GENERIC_BRIEF;
-  return `${brief}${OUTPUT_RULES}
+  const referenceBlock =
+    referenceCaptions.length > 0
+      ? `\n\n---\n\nREFERENCE IMAGES (the user attached these — analyzed by a vision model):\n${referenceCaptions
+          .map((c, i) => `Reference ${i + 1}: ${c}`)
+          .join('\n\n')}\n\nWeave the visual qualities of these references (subject, style, lighting, palette, composition) into the rewritten prompt so the image model can use them as inspiration. The references will ALSO be sent to the image model directly, so describe what to borrow from them — don't merely re-describe them.`
+      : '';
+  return `${brief}${OUTPUT_RULES}${referenceBlock}
 
 ---
 
 USER PROMPT TO REWRITE:
 ${userPrompt}`;
+}
+
+interface CaptionResult {
+  text?: string;
+}
+
+async function captionReferences(refs: ImageRef[]): Promise<string[]> {
+  if (refs.length === 0) return [];
+  const client = getClient();
+  const sdk = client as unknown as {
+    requestImageToText?: (
+      p: { inputImage: string; includeCost?: boolean },
+    ) => Promise<CaptionResult>;
+    caption?: (p: { inputImage: string; includeCost?: boolean }) => Promise<CaptionResult>;
+  };
+  const captionFn = sdk.requestImageToText ?? sdk.caption;
+  if (typeof captionFn !== 'function') {
+    throw new Error('Runware SDK is missing requestImageToText — cannot analyze references.');
+  }
+  const uploadedRefs = await Promise.all(refs.map((r) => uploadReferenceImage(client, r)));
+  const captions = await Promise.all(
+    uploadedRefs.map(async (inputImage) => {
+      try {
+        const res = await captionFn.call(sdk, { inputImage, includeCost: true });
+        const text = typeof res?.text === 'string' ? res.text.trim() : '';
+        return text || '(no caption)';
+      } catch (err) {
+        console.warn('[Runware] requestImageToText failed for a reference:', err);
+        return '(caption failed)';
+      }
+    }),
+  );
+  return captions;
 }
 interface TextInferenceResult {
   text?: string;
@@ -243,7 +286,15 @@ function toReadableError(err: unknown): Error {
   }
 }
 
-export async function enhancePrompt(model: ModelId, userPrompt: string): Promise<string> {
+export interface EnhancePromptOptions {
+  references?: ImageRef[];
+}
+
+export async function enhancePrompt(
+  model: ModelId,
+  userPrompt: string,
+  opts: EnhancePromptOptions = {},
+): Promise<string> {
   const trimmed = userPrompt.trim();
   if (!trimmed) throw new Error('Enter a prompt before enhancing.');
 
@@ -256,11 +307,24 @@ export async function enhancePrompt(model: ModelId, userPrompt: string): Promise
     throw new Error('Runware SDK is missing textInference — please upgrade @runware/sdk-js.');
   }
 
+  let referenceCaptions: string[] = [];
+  const refs = opts.references ?? [];
+  if (refs.length > 0) {
+    try {
+      referenceCaptions = await captionReferences(refs);
+    } catch (err) {
+      console.warn('[Runware] reference captioning failed:', err);
+      throw toReadableError(err);
+    }
+  }
+
   let result: TextInferenceResult | TextInferenceResult[];
   try {
     result = await client.textInference({
       model: ENHANCER_MODEL,
-      messages: [{ role: 'user', content: buildUserMessage(model, trimmed) }],
+      messages: [
+        { role: 'user', content: buildUserMessage(model, trimmed, referenceCaptions) },
+      ],
       settings: {
         temperature: 1,
         topP: 0.95,

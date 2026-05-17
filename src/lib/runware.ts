@@ -199,7 +199,7 @@ function stripDataUriPrefix(value: string): string {
   return value.replace(/^data:[^;]+;base64,/, '');
 }
 
-async function uploadReferenceImage(
+export async function uploadReferenceImage(
   client: RunwareClientInstance,
   ref: ImageRef,
 ): Promise<string> {
