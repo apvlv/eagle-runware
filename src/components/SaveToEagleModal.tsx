@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MODEL_LABELS } from '../lib/models';
 import {
+  ensureAutoSaveFolder,
+  formatDateFolderName,
   getAllExistingTags,
   getSelectedFolder,
   listAllFolders,
@@ -66,6 +68,7 @@ export function SaveToEagleModal({
   const [name, setName] = useState<string>('');
   const [tags, setTags] = useState<string[]>([]);
   const [folderId, setFolderId] = useState<string | null>(null);
+  const [useAutoFolder, setUseAutoFolder] = useState<boolean>(false);
   const [annotation, setAnnotation] = useState<string>('');
   const [star, setStar] = useState<number>(initialStar);
 
@@ -83,6 +86,7 @@ export function SaveToEagleModal({
       setName(existing.name);
       setTags([...existing.tags]);
       setFolderId(existing.folderId);
+      setUseAutoFolder(false);
       setAnnotation(existing.annotation);
       setStar(existing.star);
     } else {
@@ -96,7 +100,8 @@ export function SaveToEagleModal({
       setAnnotation(buildAnnotation(job, result));
       setStar(initialStar);
       // Folder default resolved async below.
-      setFolderId(settings.defaultFolderId ?? null);
+      setUseAutoFolder(!!settings.autoDateFolder);
+      setFolderId(settings.autoDateFolder ? null : settings.defaultFolderId ?? null);
     }
   }, [open, resultKey]);
 
@@ -119,7 +124,7 @@ export function SaveToEagleModal({
         if (!cancelled) setFoldersLoading(false);
       }
 
-      if (!existing) {
+      if (!existing && !settings.autoDateFolder) {
         try {
           const selected = await getSelectedFolder();
           if (cancelled) return;
@@ -160,6 +165,18 @@ export function SaveToEagleModal({
     if (working) return;
     setWorking(true);
     try {
+      let resolvedFolderId: string | null = folderId;
+      if (useAutoFolder) {
+        try {
+          const auto = await ensureAutoSaveFolder();
+          resolvedFolderId = auto.dateFolderId;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          toast.error('Auto save folder failed', { description: msg });
+          setWorking(false);
+          return;
+        }
+      }
       const itemId = await saveGeneratedToLibrary(
         {
           imageURL: result.imageURL,
@@ -170,7 +187,7 @@ export function SaveToEagleModal({
         {
           name: name.trim() || autoNameFor(job, result),
           tags,
-          folderId: folderId ?? undefined,
+          folderId: resolvedFolderId ?? undefined,
           annotation,
         },
       );
@@ -190,7 +207,7 @@ export function SaveToEagleModal({
         itemId,
         name: name.trim() || autoNameFor(job, result),
         tags: [...tags],
-        folderId,
+        folderId: resolvedFolderId,
         annotation,
         star,
         savedAt: Date.now(),
@@ -204,7 +221,7 @@ export function SaveToEagleModal({
     } finally {
       setWorking(false);
     }
-  }, [working, result, job, name, tags, folderId, annotation, star, resultKey, onStarChange, onClose]);
+  }, [working, result, job, name, tags, folderId, useAutoFolder, annotation, star, resultKey, onStarChange, onClose]);
 
   const handleUpdate = useCallback(async () => {
     if (working || !existing) return;
@@ -357,11 +374,21 @@ export function SaveToEagleModal({
               </label>
               <select
                 id="save-folder"
-                value={folderId ?? ''}
-                onChange={(e) => setFolderId(e.target.value === '' ? null : e.target.value)}
+                value={useAutoFolder ? '__auto__' : folderId ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === '__auto__') {
+                    setUseAutoFolder(true);
+                    setFolderId(null);
+                  } else {
+                    setUseAutoFolder(false);
+                    setFolderId(v === '' ? null : v);
+                  }
+                }}
                 disabled={working || foldersLoading || isSaved}
                 className="rounded border border-border bg-bg px-2.5 py-1.5 text-sm text-fg focus:border-focus focus:outline-none disabled:opacity-60"
               >
+                <option value="__auto__">Auto — Output / {formatDateFolderName()}</option>
                 <option value="">No folder (library root)</option>
                 {folderOptions.map((f) => (
                   <option key={f.id} value={f.id}>

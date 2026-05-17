@@ -439,16 +439,19 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
               </label>
               <select
                 id="rw-folder"
-                value={draft.defaultFolderId ?? ''}
-                onChange={(e) =>
-                  setDraft((d) => ({
-                    ...d,
-                    defaultFolderId: e.target.value === '' ? undefined : e.target.value,
-                  }))
-                }
-                disabled={foldersLoading || folders.length === 0}
+                value={draft.autoDateFolder ? '__auto__' : draft.defaultFolderId ?? ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setDraft((d) => {
+                    if (v === '__auto__') return { ...d, autoDateFolder: true, defaultFolderId: undefined };
+                    if (v === '') return { ...d, autoDateFolder: false, defaultFolderId: undefined };
+                    return { ...d, autoDateFolder: false, defaultFolderId: v };
+                  });
+                }}
+                disabled={foldersLoading && folders.length === 0}
                 className="block w-full rounded border border-border bg-bg px-3 py-2 text-sm text-fg focus:border-focus focus:outline-none disabled:opacity-50"
               >
+                <option value="__auto__">Auto — date folder under “Output”</option>
                 <option value="">No default — choose at save time</option>
                 {folders.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -456,6 +459,17 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   </option>
                 ))}
               </select>
+              {draft.autoDateFolder && (
+                <p className="text-xs text-fg-subtle">
+                  Saves will land in <code>Output/YYMMDD</code> (e.g. <code>Output/{(() => {
+                    const d = new Date();
+                    const yy = String(d.getFullYear() % 100).padStart(2, '0');
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    return `${yy}${mm}${dd}`;
+                  })()}</code>). The folder is created on first save if missing.
+                </p>
+              )}
               {foldersLoading && <p className="text-xs text-fg-subtle">Loading folders…</p>}
               {foldersError && <p className="text-xs text-danger">{foldersError}</p>}
               {!foldersLoading && !foldersError && folders.length === 0 && (

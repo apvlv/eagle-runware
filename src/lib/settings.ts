@@ -16,6 +16,7 @@ export interface Settings {
   defaultModel: DefaultModel;
   defaultTags: string[];
   defaultFolderId?: string;
+  autoDateFolder: boolean;
   outputFormat: OutputFormat;
   numberResults: number;
   lastUsedModelParams: Partial<Record<DefaultModel, ModelParams>>;
@@ -31,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultModel: 'nano-banana-pro',
   defaultTags: [],
   defaultFolderId: undefined,
+  autoDateFolder: false,
   outputFormat: 'PNG',
   numberResults: 1,
   lastUsedModelParams: {},
@@ -89,6 +91,7 @@ function sanitize(raw: unknown): Settings {
     defaultModel: isDefaultModel(r.defaultModel) ? r.defaultModel : DEFAULT_SETTINGS.defaultModel,
     defaultTags: tags,
     defaultFolderId: typeof r.defaultFolderId === 'string' ? r.defaultFolderId : undefined,
+    autoDateFolder: typeof r.autoDateFolder === 'boolean' ? r.autoDateFolder : DEFAULT_SETTINGS.autoDateFolder,
     outputFormat: isOutputFormat(r.outputFormat) ? r.outputFormat : DEFAULT_SETTINGS.outputFormat,
     numberResults,
     lastUsedModelParams,

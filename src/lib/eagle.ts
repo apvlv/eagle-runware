@@ -129,6 +129,69 @@ export async function listAllFolders(): Promise<FlatFolder[]> {
   return out;
 }
 
+export function formatDateFolderName(date: Date = new Date()): string {
+  const yy = String(date.getFullYear() % 100).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yy}${mm}${dd}`;
+}
+
+export const AUTO_OUTPUT_ROOT_NAME = 'Output';
+
+async function findFolderByNameAtRoot(name: string): Promise<EagleFolder | null> {
+  const api = requireEagle();
+  if (!api.folder?.getAll) return null;
+  const roots = await api.folder.getAll();
+  for (const r of roots) {
+    if (r.name === name) return r;
+  }
+  return null;
+}
+
+function findChildByName(parent: EagleFolder, name: string): EagleFolder | null {
+  const children = Array.isArray(parent.children) ? parent.children : [];
+  for (const c of children) {
+    if (c.name === name) return c;
+  }
+  return null;
+}
+
+export interface AutoSaveFolderResult {
+  outputFolderId: string;
+  dateFolderId: string;
+  dateFolderName: string;
+  outputCreated: boolean;
+  dateCreated: boolean;
+}
+
+export async function ensureAutoSaveFolder(date: Date = new Date()): Promise<AutoSaveFolderResult> {
+  const api = requireEagle();
+  if (!api.folder?.getAll || !api.folder.create) {
+    throw new Error('Eagle folder API is unavailable — cannot create the auto save folder.');
+  }
+  const dateName = formatDateFolderName(date);
+  let output = await findFolderByNameAtRoot(AUTO_OUTPUT_ROOT_NAME);
+  let outputCreated = false;
+  if (!output) {
+    output = await api.folder.create({ name: AUTO_OUTPUT_ROOT_NAME });
+    outputCreated = true;
+  }
+  let dateFolder = findChildByName(output, dateName);
+  let dateCreated = false;
+  if (!dateFolder) {
+    dateFolder = await api.folder.create({ name: dateName, parent: output.id });
+    dateCreated = true;
+  }
+  return {
+    outputFolderId: output.id,
+    dateFolderId: dateFolder.id,
+    dateFolderName: dateName,
+    outputCreated,
+    dateCreated,
+  };
+}
+
+
 export interface ItemToDataURIResult {
   dataURI: string;
   bytes: number;
