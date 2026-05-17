@@ -158,12 +158,15 @@ OUTPUT RULES (critical):
 - If the brief above suggests a structured template, you MAY use bold section headings (e.g. **Subject/Scene:**) inline — but only when they help the image model. Otherwise use natural flowing prose.`;
 
 type TextMessage = { role: 'user' | 'assistant'; content: string };
-interface TextInferencePayload {
-  model: string;
-  messages: TextMessage[];
+interface TextInferenceSettings {
   temperature?: number;
   topP?: number;
   maxTokens?: number;
+}
+interface TextInferencePayload {
+  model: string;
+  messages: TextMessage[];
+  settings?: TextInferenceSettings;
   numberResults?: number;
   includeCost?: boolean;
 }
@@ -179,6 +182,19 @@ ${userPrompt}`;
 }
 interface TextInferenceResult {
   text?: string;
+  content?: string;
+  message?: { content?: string } | string;
+}
+
+function pickResultText(r: TextInferenceResult | undefined): string {
+  if (!r) return '';
+  if (typeof r.text === 'string' && r.text.trim()) return r.text;
+  if (typeof r.content === 'string' && r.content.trim()) return r.content;
+  if (r.message) {
+    if (typeof r.message === 'string') return r.message;
+    if (typeof r.message.content === 'string') return r.message.content;
+  }
+  return '';
 }
 
 function stripWrappers(s: string): string {
@@ -245,9 +261,11 @@ export async function enhancePrompt(model: ModelId, userPrompt: string): Promise
     result = await client.textInference({
       model: ENHANCER_MODEL,
       messages: [{ role: 'user', content: buildUserMessage(model, trimmed) }],
-      temperature: 1,
-      topP: 0.95,
-      maxTokens: 4096,
+      settings: {
+        temperature: 1,
+        topP: 0.95,
+        maxTokens: 4096,
+      },
       numberResults: 1,
       includeCost: true,
     });
@@ -257,7 +275,10 @@ export async function enhancePrompt(model: ModelId, userPrompt: string): Promise
   }
 
   const first = Array.isArray(result) ? result[0] : result;
-  const text = typeof first?.text === 'string' ? first.text : '';
-  if (!text.trim()) throw new Error('Prompt enhancer returned an empty response.');
+  const text = pickResultText(first);
+  if (!text.trim()) {
+    console.warn('[Runware] textInference response had no text field:', result);
+    throw new Error('Prompt enhancer returned an empty response.');
+  }
   return stripWrappers(text);
 }
